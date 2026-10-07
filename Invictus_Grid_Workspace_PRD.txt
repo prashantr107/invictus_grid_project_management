@@ -1,0 +1,238 @@
+﻿Product Requirements Document (PRD)
+Invictus Grid Workspace (IGW)
+Version: 1.0 | Status: Approved MVP Baseline | Product type: Internal college club project-management and issue-tracking platform
+Purpose: This document is the product-level source of truth for building IGW. It is intended for developers, designers, testers, and AI coding agents.
+1. Executive Summary
+Invictus Grid Workspace (IGW) is a secure internal project-management and issue-tracking platform for the Invictus Grid college club. It is inspired by Jira but intentionally scoped to the club's operating model. The platform will centralize projects, tasks, ownership, progress, review, GitHub work evidence, files, notifications, activity history, and contribution analytics in one place.
+IGW is a single-organization system designed for approximately 120-150 members. There is no public registration. Accounts are provisioned by an administrator, and exactly three roles are supported: Admin, Manager, and Member.
+2. Product Vision
+Create a reliable workspace where every club project has clear ownership, every task has an accountable member, work is supported by verifiable GitHub evidence, and managers/admins can review progress without relying on scattered chats or spreadsheets.
+3. Goals
+* Centralize club projects and tasks in one system.
+* Provide clear role-based access and secure account provisioning.
+* Give members a simple personal task workspace.
+* Give managers project-level visibility and task assignment/review capability.
+* Give admins complete organizational control.
+* Use a controlled task lifecycle: TODO → IN_PROGRESS → PENDING_REVIEW → COMPLETED, with CHANGES_REQUIRED for rejected work.
+* Allow members to manually attach GitHub repository, commit, or pull-request links as evidence.
+* Provide project dashboards, progress metrics, activity history, and contribution analytics.
+* Support secure image/PDF/DOCX attachments.
+* Keep the MVP simple enough to deploy and maintain while leaving clean extension points for future integrations.
+4. Non-Goals for MVP
+* Public user registration or open self-service account creation.
+* Multi-tenant SaaS organization management.
+* Automatic task completion based on GitHub pushes.
+* Full GitHub OAuth/webhook synchronization.
+* Email, SMS, or push notifications; MVP uses in-app notifications only.
+* Advanced AI task generation or autonomous project management.
+* Complex billing, subscriptions, or payment processing.
+* Real-time collaborative editing.
+5. Target Users and Roles
+RolePrimary responsibilityMVP authorityAdminClub/platform administrationFull system access; create users and projects; manage memberships; review tasks; manage settings and audit-sensitive actions.ManagerProject execution and supervisionView assigned projects; assign tasks within assigned projects; monitor progress; review/approve/reject submitted work.MemberTask executionSee own assigned tasks; update progress/status; comment; upload allowed files; add GitHub evidence; submit work for review.There are exactly three application roles in MVP. Server-side authorization is mandatory; the UI must never be treated as the security boundary.
+6. Authentication and Account Provisioning
+* Application starts on a login page; there is no public registration page.
+* Only Admin users can create accounts and provide credentials to users.
+* Users authenticate with their provisioned credentials.
+* Passwords must be stored only as secure Argon2id password hashes.
+* Strong password rules must be enforced.
+* Temporary-password / first-login password change should be supported or strongly recommended.
+* Login attempts should be rate-limited.
+* Authentication errors should be generic enough to reduce account-enumeration risk.
+* Deactivated accounts must immediately lose access.
+* Secure logout and session/token expiration are required.
+7. Core Product Modules
+* Authentication and session management
+* Admin user management
+* Role-based access control
+* Project management
+* Project membership
+* Task/issue management
+* Kanban board
+* Task review workflow
+* Task comments
+* File attachments
+* GitHub evidence links
+* In-app notifications
+* Project dashboards and analytics
+* Activity logs
+* Security/admin audit logs
+8. Project Management Requirements
+8.1 Project creation and ownership
+* Only Admin can create projects.
+* Each project has a unique human-readable project key.
+* Each project contains a name, description, status, dates/deadline where applicable, creator, timestamps, and membership.
+* Admin assigns one or more Managers and project Members.
+* Managers cannot create projects.
+* Project status values: PLANNED, ACTIVE, COMPLETED, ARCHIVED.
+8.2 Project access
+* Admin can access every project.
+* Manager can access only projects assigned to that Manager.
+* Member can access only the minimum project context needed for their assigned work and must not gain access to other members' task data.
+* Authorization must be checked on every protected API operation, including direct-object access.
+8.3 Project dashboard
+A project dashboard should display, subject to role permissions: project name and description, status, deadline, completion percentage, task counts by status and priority, assigned members, pending-review count, overdue count, recent activity, and permitted progress/contribution information.
+9. Task / Issue Requirements
+9.1 Task fields
+FieldRequirementIssue keyUnique project-scoped identifier, e.g. IGW-123.TitleRequired short task title.DescriptionDetailed work requirements and context.TypeTASK, FEATURE, or BUG for MVP.PriorityLOW, MEDIUM, HIGH, or URGENT.StatusTODO, IN_PROGRESS, PENDING_REVIEW, CHANGES_REQUIRED, COMPLETED.ProjectRequired project association.AssigneeUser responsible for execution; must satisfy project/role rules.Creator/reporterUser who created the task.DatesCreated, updated, optional due date, and completed timestamp.EvidenceOptional GitHub links and allowed file attachments.9.2 Task visibility
+* Admin can access all tasks.
+* Manager can access tasks in projects assigned to that Manager.
+* Member can access only tasks assigned to that Member.
+* A member must not be able to retrieve another member's task by changing an ID in the URL or API request.
+9.3 Task operations
+* Create task within an authorized project.
+* Assign/reassign task according to role permissions.
+* Update task details according to role permissions.
+* Change status only through valid workflow transitions.
+* Add comments and attachments where authorized.
+* Add GitHub evidence links.
+* Submit work for review.
+* Reviewers can approve or request changes.
+10. Task Lifecycle and Review Workflow
+The canonical MVP lifecycle is:
+1. TODO - task is created and ready to begin.
+2. IN_PROGRESS - assigned member is actively working.
+3. PENDING_REVIEW - member has finished the work and submitted it for review.
+4. COMPLETED - Admin or Manager approves the submitted work.
+If a reviewer is not satisfied, the task moves from PENDING_REVIEW to CHANGES_REQUIRED. The task remains assigned to the same member. The reviewer must provide improvement feedback. The member fixes the work, moves/returns the task to IN_PROGRESS, and submits again for review.
+FromToWho/conditionTODOIN_PROGRESSAssigned member starts work or authorized project user updates status.IN_PROGRESSPENDING_REVIEWAssigned member submits work for review.PENDING_REVIEWCOMPLETEDAdmin or Manager approves.PENDING_REVIEWCHANGES_REQUIREDAdmin or Manager requests changes and provides feedback.CHANGES_REQUIREDIN_PROGRESSAssigned member resumes corrective work.11. GitHub Evidence Workflow
+GitHub integration is deliberately manual in MVP. A GitHub push must never automatically mark a task complete.
+5. Member performs task work in the relevant GitHub repository.
+6. Member pushes code / opens a pull request / creates relevant repository evidence.
+7. Member pastes a GitHub repository, commit, or pull-request URL into the task.
+8. Member may add an evidence note/type where supported.
+9. Member clicks Submit for Review.
+10. Task becomes PENDING_REVIEW.
+11. Admin or Manager reviews the task and evidence.
+12. Reviewer approves → COMPLETED, or requests changes → CHANGES_REQUIRED with feedback.
+Future versions may introduce GitHub OAuth, repository linking, webhooks, branch/commit conventions, and automatic evidence detection, but these are outside the MVP.
+12. Notifications
+MVP notifications are in-app only.
+* Task assigned to member.
+* Task reassigned where applicable.
+* Task submitted for review.
+* Task approved.
+* Task returned with changes required.
+* Relevant task/project comment.
+* Other important project events permitted by the product design.
+Notifications should have a read/unread state and a reference to the relevant task/project where appropriate.
+13. Project Progress and Analytics
+13.1 Overall progress
+For the MVP, project progress is calculated server-side as: completed active tasks ÷ total active tasks × 100. If a project has zero active tasks, progress is 0%. The frontend should display the server-provided value rather than independently implementing conflicting formulas.
+13.2 Contribution metrics
+* Assigned task count
+* Completed task count
+* Pending-review count
+* Changes-required count
+* Overdue task count
+* Completion rate
+A leaderboard may be added later, but it is not required for the core MVP.
+14. Comments and Review Feedback
+* Authorized users can add comments to tasks.
+* Comments record author and timestamps.
+* Review feedback must be clearly distinguishable from normal discussion comments.
+* Any edit/delete behavior must be explicitly permission-controlled and audited when security-sensitive.
+* Comments must be validated and stored safely; rendered content must not create XSS vulnerabilities.
+15. File Attachment Requirements
+MVP allowed file types: PNG, JPG/JPEG, PDF, and DOCX.
+* Files are stored on the Render server/persistent disk for MVP.
+* PostgreSQL stores attachment metadata, not the binary file itself.
+* Use a storage-service abstraction so the backend can later migrate to object storage without changing business logic.
+* Generate safe server-side storage names/keys; do not trust client filenames for filesystem paths.
+* Enforce maximum upload size.
+* Validate MIME type and extension consistently.
+* Prevent path traversal and executable uploads.
+* Only authorized users can upload/download/delete attachments.
+* Future production hardening may add malware scanning and object storage.
+16. Activity and Audit Logging
+16.1 Activity log
+User-visible activity history should record meaningful project/task events such as task creation, assignment, status changes, comments, review decisions, GitHub evidence additions, and attachment events.
+16.2 Audit log
+Security/admin audit logs should capture sensitive administrative and security actions, including user creation/deactivation, role changes, project creation/deletion, membership changes, and other privileged operations. Logs must not contain passwords, tokens, or other secrets.
+17. Security Requirements
+* HTTPS in production.
+* Strong password policy and Argon2id password hashing.
+* Role-based authorization enforced server-side.
+* Object-level authorization to prevent IDOR/BOLA.
+* Deactivated accounts denied access.
+* Login rate limiting and abuse protection.
+* Secure CORS configuration.
+* Security headers appropriate to the deployment.
+* Pydantic/input validation for API payloads.
+* SQLAlchemy/parameterized database operations; no unsafe string-built SQL.
+* Secrets stored in environment/configuration management, never committed to source control.
+* Never log passwords, tokens, or API secrets.
+* Safe file upload/download controls.
+* Consistent error handling without leaking stack traces or sensitive internals to clients.
+* Automated tests for authorization bypass, IDOR/BOLA, role escalation, invalid uploads, path traversal, rate limiting, and deactivated-account access.
+18. Non-Functional Requirements
+AreaRequirementScalabilitySupport approximately 120-150 club members without architectural redesign.PerformanceCommon dashboard/list/API interactions should feel responsive; use pagination for potentially large collections.AvailabilityProduction deployment should use reliable hosted services and persistent database/file storage.MaintainabilitySeparate API routes, services, repositories/data access, models, validation, authorization, and storage concerns.TestabilityCore business rules and authorization must have automated tests.ObservabilityStructured application logs and useful error reporting should be available in production.AccessibilityUse semantic HTML, keyboard-accessible controls, readable contrast, labels, and responsive layouts.SecurityTreat every API request as untrusted and enforce authorization server-side.19. Recommended Main Screens
+* Login
+* Admin dashboard
+* Manager dashboard
+* Member dashboard / My Tasks
+* Projects list
+* Project overview/dashboard
+* Project Kanban board
+* Task details
+* Create/edit task
+* Notifications center
+* User management (Admin)
+* Project/member management (Admin)
+* Activity/audit views as permitted
+20. Role-Based Screen Access
+Screen / capabilityAdminManagerMemberLoginYesYesYesAll projectsYesAssigned projectsOnly permitted contextCreate projectYesNoNoCreate usersYesNoNoAssign tasksYesWithin assigned projectsNo, unless explicitly enabled laterView own tasksYesYesYesView another member's tasksYesWithin authorized project scopeNoSubmit reviewYesYes where acting on own permitted workYes for own tasksReview/approve/rejectYesYes in assigned projectsNoManage membershipsYesNoNoUpload attachmentsYesYesYes on permitted tasksAdd GitHub evidenceYesYesYes on permitted tasks21. Acceptance Criteria
+13. Admin can log in and create/deactivate users.
+14. Admin can create a project and assign Managers/Members.
+15. Manager can see only assigned projects.
+16. Manager can assign tasks within assigned projects.
+17. Member can see only their own assigned tasks.
+18. Member can update task progress and add comments/files/GitHub evidence.
+19. Member can submit a task for review.
+20. Admin/Manager can approve or request changes with feedback.
+21. Requested changes return the task to the same member for correction.
+22. GitHub pushes do not automatically complete tasks.
+23. Project progress is calculated consistently by the backend.
+24. In-app notifications are generated for key task/review events.
+25. Attachments are restricted to PNG/JPG/JPEG/PDF/DOCX and protected by authorization.
+26. Sensitive administrative/security events are auditable.
+27. Unauthorized direct API requests are rejected even if a user manipulates IDs or frontend requests.
+22. Future Enhancements
+* GitHub OAuth and repository linking
+* GitHub webhooks and automatic evidence synchronization
+* Branch/commit/PR task-ID conventions
+* Object storage such as S3-compatible storage
+* Redis caching/queues
+* WebSocket real-time updates
+* Email notifications
+* Advanced analytics and reporting
+* Calendar/deadline integrations
+* AI-assisted task creation, summarization, prioritization, or project insights
+* Fine-grained permissions beyond the three-role MVP model
+23. Definition of Done
+* Feature meets its documented requirements and acceptance criteria.
+* Authorization rules are enforced server-side.
+* Validation and error handling are implemented.
+* Unit/integration tests cover critical business rules.
+* UI states include loading, empty, success, and error cases where relevant.
+* No secrets are committed.
+* Database migrations are included for schema changes.
+* API and frontend behavior are consistent with the approved contract.
+* Activity/audit logging is implemented where required.
+* Documentation is updated for meaningful architectural or workflow changes.
+24. Agent Instructions / Source-of-Truth Rules
+AI coding agents must treat this PRD and the subsequent SRS/TRD/architecture/API/security documents as the approved baseline. Agents must not silently invent conflicting roles, permissions, workflows, or business rules.
+* If a requested implementation conflicts with the approved documents, flag the conflict before changing the architecture.
+* Prefer small, testable changes over large unverified rewrites.
+* Business rules belong in the service/domain layer, not only in frontend components or route handlers.
+* Never rely on UI hiding as authorization.
+* Use migrations for database changes.
+* Keep storage behind an abstraction to enable future object-storage migration.
+* Do not implement automatic GitHub completion in MVP.
+* Do not introduce additional application roles without an explicit product decision.
+* Preserve the documented task lifecycle unless a change is explicitly approved.
+25. Change Control
+This PRD is the MVP baseline. Changes to roles, access scope, task lifecycle, project ownership, storage strategy, GitHub completion behavior, or other core product rules should be explicitly documented and reflected in the relevant requirements, architecture, API, database, security, and test plans before implementation.
+26. Approved MVP Decisions Summary
+DecisionApproved choiceOrganization modelSingle Invictus Grid club; capacity target ~120-150 members.RolesExactly Admin, Manager, Member.User creationAdmin only; no public signup.Project creationAdmin only.Member task visibilityMembers see only their own assigned tasks.Task reviewAdmin or Manager can review.GitHub MVPManual evidence links; push does not auto-complete.NotificationsIn-app only.AttachmentsPNG/JPG/JPEG/PDF/DOCX.File storage MVPRender server persistent disk; PostgreSQL stores metadata; storage abstraction required.Core lifecycleTODO → IN_PROGRESS → PENDING_REVIEW → COMPLETED; rejection → CHANGES_REQUIRED → IN_PROGRESS.
+Invictus Grid Workspace (IGW) - Product Requirements Document v1.0
+

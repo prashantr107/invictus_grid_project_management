@@ -1,0 +1,234 @@
+﻿Invictus Grid Workspace (IGW)
+Software Requirements Specification (SRS)
+Document 2 | Version 1.0 | MVP Baseline
+1. Introduction
+1.1 Purpose
+This SRS defines the functional and non-functional requirements for Invictus Grid Workspace (IGW), a secure internal project-management and issue-tracking platform for the Invictus Grid college club. It is intended to be the implementation-level requirements baseline for developers, testers, reviewers, and AI coding agents.
+1.2 Product Scope
+IGW supports controlled account provisioning, role-based access, project and task management, Kanban workflow, task review, GitHub work evidence, comments, attachments, in-app notifications, dashboards, activity history, contribution analytics, and security/audit logging. The MVP serves one club/organization and is sized for approximately 120-150 members.
+1.3 Definitions
+TermMeaningIGWInvictus Grid WorkspaceAdminHighest-privilege platform administratorManagerProject-level work coordinator/reviewerMemberUser who performs assigned tasksTask/IssueUnit of work tracked in a projectBOLA/IDORBroken object-level authorization / insecure direct object referenceMVPMinimum viable product1.4 References and Constraints
+* Single organization; not a multi-tenant SaaS product.
+* Exactly three application roles: Admin, Manager, Member.
+* No public registration.
+* Only Admin creates users and projects.
+* Members can access only their own assigned tasks.
+* Managers can operate only within projects assigned to them.
+* GitHub integration is manual in MVP; no automatic completion from pushes.
+* Attachments are PNG/JPG/JPEG/PDF/DOCX and are stored on server persistent storage in MVP; metadata is stored in PostgreSQL.
+* Notifications are in-app only in MVP.
+2. Overall Description
+2.1 Product Perspective
+IGW is a browser-based internal system with a React/TypeScript frontend, FastAPI/Python backend, PostgreSQL database, and server-side persistent file storage. The backend exposes versioned REST APIs and enforces authentication and authorization independently of frontend visibility.
+2.2 User Classes
+RolePrimary capabilitiesRestrictionsAdminUsers, projects, memberships, tasks, reviews, dashboards, audit/security managementNone within application scopeManagerView assigned projects, assign/manage tasks within assigned projects, review member workCannot create users or projects; cannot operate outside assigned projectsMemberView own tasks, update status, comment, upload files, add GitHub evidence, submit for reviewCannot see other members' tasks; cannot create users/projects; cannot approve own work2.3 Operating Environment
+* Modern desktop/mobile web browsers with JavaScript enabled.
+* Frontend deployed to Vercel or equivalent.
+* Backend deployed to Render or equivalent.
+* PostgreSQL-compatible production database.
+* Persistent server disk for MVP attachment storage.
+* HTTPS in production.
+2.4 Design Principles
+* Server-side authorization is authoritative.
+* Business logic belongs in services, not route handlers.
+* Use database constraints and transactions for integrity.
+* Prefer explicit, auditable state transitions.
+* Use storage abstraction so file storage can later migrate to object storage.
+* Use API versioning from the beginning.
+3. Functional Requirements
+3.1 Authentication and Account Management
+FR-AUTH-001: The system shall provide a login page without public self-registration.
+FR-AUTH-002: Only Admin users shall create accounts.
+FR-AUTH-003: The system shall authenticate users using securely hashed passwords (Argon2id recommended).
+FR-AUTH-004: The system shall support secure logout and expiration of authenticated sessions/tokens.
+FR-AUTH-005: Deactivated users shall be denied access even if they possess previously issued credentials/tokens, subject to the chosen token invalidation strategy.
+FR-AUTH-006: Login errors shall not reveal whether a specific account exists.
+FR-AUTH-007: Login attempts shall be rate limited or protected against brute-force abuse.
+FR-AUTH-008: The system shall expose the authenticated user profile/role through a /me-style endpoint.
+FR-AUTH-009: Temporary-password onboarding, if implemented, shall require a password change on first login.
+3.2 Role-Based Authorization
+FR-RBAC-001: Every protected API endpoint shall enforce authentication.
+FR-RBAC-002: Every protected resource operation shall enforce server-side authorization.
+FR-RBAC-003: Admin shall have full application permissions.
+FR-RBAC-004: Manager permissions shall be limited to projects assigned to that manager.
+FR-RBAC-005: Member permissions shall be limited to the member's own assigned tasks and minimum necessary project context.
+FR-RBAC-006: A member shall not access another member's task by changing an ID in a URL or API request.
+FR-RBAC-007: Frontend route guards shall improve UX but shall never be treated as the security boundary.
+3.3 User Management
+* Admin can create a user with name, email/identifier, role, and initial credentials.
+* Admin can view users and account status.
+* Admin can deactivate/reactivate users.
+* Admin can change roles where permitted by policy.
+* User creation, deactivation, and role changes shall be audit logged.
+3.4 Project Management
+FR-PROJ-001: Only Admin shall create projects.
+FR-PROJ-002: Each project shall have a unique human-readable project key.
+FR-PROJ-003: A project shall contain name, description, status, creator, dates/deadline where applicable, and timestamps.
+FR-PROJ-004: Project statuses shall support PLANNED, ACTIVE, COMPLETED, and ARCHIVED.
+FR-PROJ-005: Admin shall assign managers and members to projects.
+FR-PROJ-006: Managers shall see only projects assigned to them.
+FR-PROJ-007: Members shall receive only the project context needed for their assigned work.
+FR-PROJ-008: Membership additions/removals shall be authorization-checked and auditable.
+3.5 Task and Issue Management
+FR-TASK-001: Tasks shall belong to exactly one project.
+FR-TASK-002: Tasks shall have an issue key unique within the project, title, description, type, priority, status, creator, assignee where applicable, and timestamps.
+FR-TASK-003: MVP task types shall include TASK, FEATURE, and BUG.
+FR-TASK-004: MVP priorities shall include LOW, MEDIUM, HIGH, and URGENT.
+FR-TASK-005: Managers shall be able to assign tasks only within projects they manage.
+FR-TASK-006: Members shall be able to view only tasks assigned to themselves.
+FR-TASK-007: Authorized users shall be able to view task details appropriate to their role.
+FR-TASK-008: Task changes shall generate appropriate activity records and notifications.
+3.6 Task Workflow and Review
+StateMeaningAllowed next statesTODOTask created/not startedIN_PROGRESSIN_PROGRESSMember is actively workingPENDING_REVIEWPENDING_REVIEWSubmitted for manager/admin reviewCOMPLETED or CHANGES_REQUIREDCHANGES_REQUIREDReviewer requested improvementsIN_PROGRESSCOMPLETEDApproved and finishedReopen only by explicitly authorized policy if later addedFR-REVIEW-001: A member shall submit a task for review after completing the work and required evidence.
+FR-REVIEW-002: Submission shall move the task to PENDING_REVIEW.
+FR-REVIEW-003: Admin or the assigned project Manager shall review a pending task.
+FR-REVIEW-004: Approval shall move the task to COMPLETED and record reviewer/time.
+FR-REVIEW-005: Request Changes shall require improvement feedback and move the task to CHANGES_REQUIRED.
+FR-REVIEW-006: A rejected task shall remain assigned to the same member unless an authorized reassignment is made separately.
+FR-REVIEW-007: Review actions shall be activity/audit traceable.
+3.7 GitHub Evidence
+FR-GH-001: Members shall be able to add a GitHub repository, commit, or pull-request URL to a task.
+FR-GH-002: The system shall validate that submitted values are well-formed URLs and store them as evidence records.
+FR-GH-003: Adding a GitHub link shall not automatically complete a task.
+FR-GH-004: A member shall explicitly submit the task for review/mark the work ready for review.
+FR-GH-005: Reviewers shall inspect the submitted evidence before approval.
+FR-GH-006: OAuth, webhooks, automatic branch/commit detection, and automatic completion are future enhancements, not MVP requirements.
+3.8 Comments
+* Authorized users can add comments to tasks.
+* Comments record author and timestamps.
+* Review feedback shall be distinguishable from normal discussion, either through a review record or explicit comment type.
+* Comment creation shall be authorization checked and activity logged where appropriate.
+3.9 Attachments
+* Allowed MVP types: PNG, JPG, JPEG, PDF, DOCX.
+* PostgreSQL shall store attachment metadata; file bytes shall be stored on persistent server disk.
+* The system shall generate safe internal filenames/storage keys and never trust user-supplied path components.
+* Download/access authorization shall be enforced server-side.
+* Configurable file size limits shall be enforced.
+* Executable files and unsupported types shall be rejected.
+* Storage implementation shall be abstracted behind a service interface to support future object storage.
+3.10 Notifications
+* MVP notifications shall be in-app only.
+* Notify users for relevant assignment, review-request, changes-required, approval, and important task/project events.
+* Users shall be able to list notifications and mark them read.
+* A notification shall reference its related entity where applicable.
+3.11 Dashboards and Analytics
+* Project dashboard shall show status, deadline, task counts, priority distribution, pending review, overdue work, members, recent activity, and progress.
+* Overall project progress shall be calculated server-side as completed active tasks / total active tasks × 100; zero tasks yields 0%.
+* Contribution metrics shall include assigned count, completed count, pending review, changes required, overdue, and completion rate.
+* Analytics must respect role-based visibility.
+* A leaderboard is optional and not required for MVP.
+3.12 Activity and Audit Logging
+* Activity logs shall capture meaningful project/task events for user-facing history.
+* Audit logs shall capture privileged/security-sensitive actions such as user creation, deactivation, role changes, project creation, and membership changes.
+* Logs shall not contain passwords, access tokens, or other secrets.
+* Logs shall include actor, action, target, timestamp, and relevant metadata where appropriate.
+4. Data Requirements
+4.1 Core Entities
+EntityRequired purposeusersIdentity, role, credentials, account statusprojectsProject metadata and lifecycleproject_membersProject-to-user membership/manager scopetasksIssues/work units and lifecycletask_reviewsReview decisions and feedbackcommentsTask discussionnotificationsIn-app user notificationsactivity_logsUser-facing event historyaudit_logsSecurity/administrative audit trailattachmentsFile metadata and storage referencesgithub_linksGitHub evidence URLs4.2 Integrity Requirements
+* Use foreign keys for entity relationships.
+* Enforce unique constraints for user identifiers and project keys as appropriate.
+* Use transactions for multi-record state changes such as review approval and notification creation.
+* Prevent orphaned project/task records through referential integrity or explicit lifecycle policies.
+* Store timestamps consistently and document timezone handling.
+5. External Interface Requirements
+5.1 User Interface
+* Login page.
+* Role-aware dashboard.
+* Project list and project details.
+* Kanban task board.
+* Task detail page with status, comments, attachments, GitHub evidence, and review controls.
+* Admin user-management screens.
+* Notifications panel.
+* Analytics/dashboard views.
+5.2 API Interface
+The backend shall expose versioned REST endpoints under /api/v1. Representative resources include auth, users, projects, project members, tasks, comments, attachments, GitHub links, notifications, and analytics. Exact schemas are defined in the separate API Contract document.
+5.3 Error Handling
+* Use consistent HTTP status codes.
+* Return structured validation and authorization errors.
+* Do not expose stack traces or sensitive implementation details in production responses.
+* Use a correlation/request ID strategy if feasible for debugging.
+6. Non-Functional Requirements
+6.1 Security
+* Argon2id password hashing.
+* HTTPS in production.
+* Secure cookie/token handling according to chosen authentication design.
+* Strict CORS configuration.
+* Security headers.
+* Pydantic input validation.
+* Parameterized database access through SQLAlchemy.
+* Rate limiting for authentication-sensitive endpoints.
+* Protection against BOLA/IDOR, CSRF where applicable, XSS, SQL injection, path traversal, unsafe file upload, and privilege escalation.
+* Secrets supplied through environment/secret management, never source control.
+6.2 Performance
+* Normal authenticated page/API interactions should target responsive UX under expected club load.
+* Database queries shall be indexed for common filters such as project_id, assignee_id, status, and notification user/read state.
+* Pagination shall be used for potentially large lists such as tasks, comments, notifications, users, and logs.
+6.3 Availability and Recovery
+* Production database backups should be enabled through the selected hosting provider.
+* File storage backup strategy shall be documented because MVP files reside on persistent disk.
+* Application should fail gracefully when file storage or external GitHub URLs are unavailable.
+6.4 Maintainability
+* Use layered backend architecture: API → service → repository/data access → database models.
+* Keep frontend feature-oriented.
+* Use migrations for schema changes.
+* Automated tests shall cover critical authorization and workflow paths.
+* Configuration shall be environment-driven.
+6.5 Scalability
+* Design for approximately 120-150 members without architectural redesign.
+* Keep storage behind an abstraction for future object storage.
+* Keep business logic independent of a specific hosting provider.
+* Future Redis/WebSocket/email/GitHub webhook integrations should be addable without rewriting core domain logic.
+7. Acceptance Criteria
+1. Admin can log in and create/deactivate users.
+2. Admin can create a project and assign managers/members.
+3. Manager can see only assigned projects and can assign tasks within them.
+4. Member can see only their own assigned tasks.
+5. A member can move work through TODO → IN_PROGRESS → PENDING_REVIEW.
+6. Admin/Manager can approve a pending task or request changes with feedback.
+7. A requested-change task returns to IN_PROGRESS and remains assigned to the same member.
+8. Member can attach an allowed file and add a GitHub URL.
+9. GitHub evidence alone cannot complete a task.
+10. In-app notifications are generated for key assignment/review events.
+11. Project dashboard progress matches the server-side progress formula.
+12. Unauthorized direct API access to another member's task is rejected.
+13. Audit/security events are recorded without secrets.
+14. Production configuration uses HTTPS and environment-managed secrets.
+8. Testing Requirements
+8.1 Minimum Test Coverage
+* Authentication success/failure and rate limiting behavior.
+* Role permission matrix for every major endpoint.
+* Member isolation from other members' tasks.
+* Manager isolation from unassigned projects.
+* Admin-only user/project creation.
+* Task lifecycle and invalid state transitions.
+* Review approval and changes-required flows.
+* GitHub link validation.
+* Attachment type/size validation and authorized download.
+* Notification creation/read state.
+* Project progress calculation.
+* Audit log creation for privileged operations.
+8.2 Security Testing
+* Attempt direct-object access with another user's IDs.
+* Attempt role escalation through crafted requests.
+* Attempt access after account deactivation.
+* Attempt path traversal through attachment names/paths.
+* Attempt unsupported/executable file uploads.
+* Attempt brute-force login behavior.
+* Verify no secrets are returned in errors or logs.
+9. Traceability and Requirement IDs
+All requirements in this SRS use stable identifiers. Future implementation tasks, API specifications, tests, and agent checklists should reference these IDs where practical so that implementation coverage can be audited.
+10. MVP Boundaries and Future Scope
+* Not in MVP: public signup, multi-tenancy, automatic GitHub completion, GitHub OAuth/webhooks, email notifications, real-time WebSockets, Redis-dependent features, AI-generated task management, object-storage migration.
+* These may be added later without changing the core authorization model or task-review lifecycle.
+11. Definition of Ready for Implementation
+* PRD approved.
+* SRS approved.
+* TRD and architecture approved.
+* Database schema/ERD reviewed.
+* API contract reviewed.
+* Security requirements accepted.
+* Environment variables and deployment targets defined.
+* Seed/admin bootstrap strategy defined.
+* Coding agent receives the full documentation package and is instructed to treat it as the source of truth.
+Invictus Grid Workspace - Software Requirements Specification - v1.0
+

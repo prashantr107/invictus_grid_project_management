@@ -1,0 +1,111 @@
+﻿Invictus Grid Workspace (IGW)
+Technical Requirements Document (TRD)
+Version 1.0 | MVP Technical Baseline
+1. Purpose and Scope
+Defines the technical baseline for implementing IGW, a secure internal project-management and issue-tracking platform for one college club with approximately 120-150 members. This document translates the approved PRD/SRS into implementation constraints, architecture, technology choices, interfaces, security controls, testing, deployment, and maintainability rules.
+2. Approved Technology Stack
+* Frontend: React, TypeScript, Vite, Tailwind CSS, TanStack Query, dnd-kit, Recharts, Lucide React.
+* Backend: Python, FastAPI, Pydantic v2, SQLAlchemy 2.0, Alembic, JWT/session-based authentication, Argon2id password hashing.
+* Database: PostgreSQL.
+* MVP file storage: Render persistent disk/server filesystem with PostgreSQL metadata; implement a storage abstraction so object storage can be introduced later.
+* Deployment baseline: frontend on Vercel; backend and persistent storage on Render; managed PostgreSQL on Render or equivalent.
+* Optional future infrastructure: Redis, WebSockets, object storage, GitHub OAuth/webhooks, email, background workers, AI services.
+3. Architectural Style
+* Use a modular monolith for MVP. Frontend and backend are separately deployable applications. Backend layers: API/router → authorization and validation → service/business layer → repository/data-access layer → SQLAlchemy models → PostgreSQL. Cross-cutting modules handle configuration, security, logging, errors, and storage.
+* Do not put business rules in route handlers. Services own state transitions and authorization-sensitive operations. Repositories isolate database access.
+* Use REST/JSON APIs under /api/v1. Keep domain modules independently testable.
+4. Frontend Technical Requirements
+* Use strict TypeScript. Prefer feature-oriented organization: auth, dashboard, projects, tasks, notifications, users, shared UI.
+* TanStack Query is the source of truth for server state, caching, loading and mutation lifecycle. Use Zustand only for genuinely client-local state.
+* Use reusable form components with schema validation. Centralize API client, error handling, authentication handling, and request types.
+* Protect routes by authentication and role. UI restrictions are convenience only; server authorization remains authoritative.
+* Kanban drag/drop must call validated task-transition APIs rather than directly mutating local status as final truth.
+5. Backend Technical Requirements
+* FastAPI routers expose thin endpoints. Pydantic schemas define request/response contracts. Services implement workflows such as assignment, submission, review, approval, rejection, notification creation, and audit logging.
+* SQLAlchemy 2.0 must use parameterized queries/ORM expressions; no string-built SQL from user input. Alembic owns schema migrations.
+* Use dependency injection for database sessions, authenticated user context, and permission checks. Centralize exception mapping into consistent API error responses.
+* Use UTC timestamps in storage and ISO 8601 in API responses.
+6. Authentication and Authorization
+* No public registration. Only Admin can create accounts.
+* Store passwords using Argon2id; never store plaintext passwords. Use secure token/session handling, expiry, logout/revocation strategy, and secure cookies if cookie-based sessions are selected.
+* Apply login rate limiting, generic authentication failure messages, account-active checks, and audit logging for security-sensitive actions.
+* Implement RBAC plus object-level authorization: Admin has global authority; Manager can operate only within assigned projects; Member can access only their own assigned tasks and permitted project context.
+* Every protected endpoint must enforce authorization server-side. Direct-object access tests must cover IDOR/BOLA scenarios.
+7. Domain Model and Database Requirements
+* Core tables: users, projects, project_members, tasks, task_reviews, comments, notifications, activity_logs, audit_logs, attachments, github_links.
+* Use UUID or equivalent non-sequential identifiers where appropriate. Enforce foreign keys, unique constraints, indexes on lookup fields, and check/enum constraints for controlled states.
+* Recommended task fields include issue_key, project_id, title, description, type, status, priority, created_by, assignee_id, due dates, completed_at, created_at and updated_at.
+* Project progress is calculated server-side as completed active tasks divided by total active tasks multiplied by 100; zero tasks yields 0%.
+8. Task State Machine
+* Allowed lifecycle: TODO → IN_PROGRESS → PENDING_REVIEW → COMPLETED.
+* PENDING_REVIEW → CHANGES_REQUIRED → IN_PROGRESS. A rejected task remains assigned to the same member. Reviewer feedback is required when requesting changes.
+* Transitions must be validated centrally. Clients cannot set arbitrary status combinations. Approval and rejection create review records, activity entries, and notifications.
+9. GitHub Evidence Integration
+* MVP is manual evidence capture. Member pastes a repository, commit, or pull-request URL into a task.
+* A GitHub push alone must never automatically complete a task. Submission explicitly moves the task to PENDING_REVIEW.
+* Store URL, evidence type, task ID, submitting user, and timestamp. Validate URL format and associate evidence with authorized tasks.
+* Future OAuth/webhooks may verify repositories, commits, pull requests, or task IDs without changing the MVP contract.
+10. File Storage
+* Allowed MVP file types: PNG, JPG, JPEG, PDF, DOCX. Enforce configurable size limits.
+* Generate safe server-side storage names/keys; never use user-supplied filenames as filesystem paths. Store metadata in PostgreSQL and binary content on persistent disk.
+* Downloads require authorization. Protect against path traversal, executable uploads, MIME spoofing where practical, and uncontrolled disk consumption.
+* Implement a storage interface such as save/get/delete so migration to S3-compatible object storage requires minimal application changes.
+11. API Standards
+* Base path: /api/v1. JSON for normal requests/responses; multipart/form-data for file uploads.
+* Use consistent HTTP semantics: 2xx success, 4xx client/authorization errors, 5xx unexpected server errors.
+* Recommended error shape: code, message, details/request context where safe, and request_id. Never expose stack traces or secrets.
+* Paginate collection endpoints. Validate query parameters, filters, sorting, and identifiers. Document the API with FastAPI-generated OpenAPI.
+12. Core Endpoint Baseline
+* POST /auth/login, POST /auth/refresh, POST /auth/logout, GET /me.
+* GET/POST/PATCH /users and /users/{id}.
+* GET/POST/PATCH /projects and project membership endpoints.
+* POST/GET/PATCH /projects/{id}/tasks and GET/PATCH /tasks/{id}.
+* POST /tasks/{id}/submit-review and POST /tasks/{id}/review.
+* Task comment, attachment, GitHub evidence, notification, dashboard, activity and audit endpoints as defined by the SRS.
+13. Security Engineering
+* Production traffic must use HTTPS. Configure strict CORS to known frontend origins and security headers.
+* Secrets belong in environment variables/secret management, never source control. Do not log passwords, access tokens, refresh tokens, session secrets, or sensitive upload contents.
+* Validate all inputs with Pydantic and enforce authorization before data mutation or file access.
+* Audit: user creation/deactivation, role changes, project creation/deletion, membership changes, privileged task actions, and security-relevant events.
+* Use dependency and package scanning, secret scanning, static analysis, and regular vulnerability updates.
+14. Observability and Operations
+* Use structured application logs with severity, timestamp, request ID, actor ID when safe, route, status, and duration.
+* Provide health/readiness endpoints that do not leak secrets.
+* Capture database and storage failures distinctly. Add useful metrics later for request latency, error rate, login failures, storage usage, and task workflow volume.
+15. Testing Requirements
+* Backend unit tests for services, permissions, state transitions, validation and calculations.
+* Integration tests for PostgreSQL-backed repositories/API workflows.
+* Frontend component and feature tests for forms, permissions, task board behavior and API states.
+* End-to-end tests for login, admin provisioning, project creation, assignment, member submission, review approval/rejection, attachments, GitHub evidence and notifications.
+* Security tests must include IDOR/BOLA, role bypass, inactive users, path traversal, unsafe upload, rate limiting, and unauthorized project access.
+16. CI/CD Requirements
+* Use Git-based version control with pull requests and protected main/production branches.
+* CI should install dependencies, lint, type-check, run unit/integration tests, build frontend, validate migrations, and perform security/static checks.
+* Deploy only after required checks pass. Database migrations must run in a controlled deployment step and remain backward-compatible when practical.
+17. Deployment Requirements
+* Frontend: Vercel or equivalent static/edge deployment. Backend: Render service. Database: managed PostgreSQL. Persistent uploads: Render persistent disk for MVP.
+* Separate development, staging where available, and production configuration. Keep secrets and environment-specific URLs outside source code.
+* Configure backups for PostgreSQL and document recovery procedures. Persistent upload data must be included in the operational backup strategy.
+18. Performance and Scalability
+* MVP target: support approximately 120-150 members without architectural redesign.
+* Use indexed queries, pagination, selective eager loading, and server-side aggregation for dashboards. Avoid N+1 queries.
+* Do not prematurely introduce microservices. The modular monolith should be sufficient for expected club scale.
+* Future scale mechanisms may include Redis caching, background workers, WebSockets and object storage.
+19. Coding and Repository Standards
+* Use meaningful names, small cohesive modules, type annotations, clear docstrings for non-obvious business rules, and consistent formatting/linting.
+* No hard-coded secrets, URLs, role checks scattered throughout UI components, or direct database access from route handlers.
+* Use migrations for schema changes. Never edit production schema manually.
+* Every feature should include authorization rules, validation, error handling, tests, and audit/activity behavior where applicable.
+20. Definition of Technical Done
+Feature implemented according to PRD/SRS/TRD; API and UI contracts documented; server-side authorization enforced; validation and error states handled; tests added; migrations created if needed; logs/audit/activity behavior implemented; security review completed; CI passes; deployment configuration updated; no secrets committed.
+21. Future Extension Rules
+* Design interfaces so GitHub OAuth/webhooks, object storage, Redis, WebSockets, email and AI assistance can be added without rewriting the domain model.
+* Do not add future infrastructure merely for appearance. Each dependency must solve a current requirement or have a documented integration boundary.
+* Potential AI features are advisory only unless explicitly approved: task summaries, review-assistance, contribution insights, or planning suggestions must not silently change task state or permissions.
+22. Agent Implementation Rules
+* Treat PRD, SRS and TRD as source-of-truth documents. Do not invent roles, workflows or permissions.
+* Before coding, inspect the repository and preserve existing conventions unless they conflict with these requirements.
+* Implement incrementally with tests after each vertical slice. Never bypass authorization to make a feature work.
+* When a requirement is ambiguous, choose the safest behavior and document the decision rather than silently changing the product contract.
+Invictus Grid Workspace - TRD v1.0
+
