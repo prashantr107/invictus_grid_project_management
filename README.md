@@ -31,7 +31,7 @@ Set `JWT_SECRET_KEY` to a random secret of at least 32 characters. For split-sit
 
 ### Frontend
 
-Requires Node.js 20+. From `frontend/`:
+Requires Node.js 20.19+ or 22.12+. From `frontend/`:
 
 ```powershell
 npm install
@@ -42,6 +42,8 @@ The frontend reads its backend base URL from `VITE_API_BASE_URL` (defaults to `h
 
 ## Current scope
 
-The foundation includes authentication, Admin account provisioning, initial database migrations, and the health endpoint. Project/task workflows, frontend sign-in screens, and the remaining product modules are planned for later implementation slices.
+Implemented slices include authentication, Admin account provisioning and management, initial database migrations, the health endpoint, and frontend sign-in and first-login password-change screens. Admins can search and paginate the People directory, create accounts, change roles, and activate or deactivate accounts.
+
+The frontend keeps access tokens in memory and uses the HttpOnly refresh cookie to renew an expired access token after an authenticated request receives a 401. It retries that request once. Project/task workflows and the non-Admin role dashboards are still planned.
 
 Admin-provisioned accounts must change their initial password through `POST /api/v1/auth/change-password` before using Admin-only operations. Changing a password revokes active sessions, so the user signs in again afterward.
