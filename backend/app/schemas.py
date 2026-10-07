@@ -59,6 +59,13 @@ class UserRead(BaseModel):
     created_at: datetime
 
 
+class UserPage(BaseModel):
+    items: list[UserRead]
+    total: int
+    offset: int
+    limit: int
+
+
 class LoginRequest(BaseModel):
     email: EmailStr
     password: SecretStr

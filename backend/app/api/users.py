@@ -1,7 +1,7 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -9,7 +9,7 @@ from app.api.dependencies import require_admin
 from app.core.security import hash_password
 from app.db.session import get_db
 from app.models import AuditLog, AuthSession, User, utc_now
-from app.schemas import UserCreate, UserRead, UserRoleUpdate, UserStatusUpdate
+from app.schemas import UserCreate, UserPage, UserRead, UserRoleUpdate, UserStatusUpdate
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -36,9 +36,24 @@ def create_user(payload: UserCreate, db: Session = Depends(get_db), actor: User 
     return user
 
 
-@router.get("", response_model=list[UserRead])
-def list_users(db: Session = Depends(get_db), _: User = Depends(require_admin)) -> list[User]:
-    return list(db.scalars(select(User).order_by(User.created_at.desc())).all())
+@router.get("", response_model=UserPage)
+def list_users(
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=25, ge=1, le=100),
+    search: str | None = Query(default=None, max_length=160),
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+) -> UserPage:
+    statement = select(User)
+    count_statement = select(func.count()).select_from(User)
+    if search and search.strip():
+        term = f"%{search.strip()}%"
+        criteria = or_(User.full_name.ilike(term), User.email.ilike(term))
+        statement = statement.where(criteria)
+        count_statement = count_statement.where(criteria)
+    items = list(db.scalars(statement.order_by(User.created_at.desc()).offset(offset).limit(limit)).all())
+    total = db.scalar(count_statement) or 0
+    return UserPage(items=items, total=total, offset=offset, limit=limit)
 
 
 @router.patch("/{user_id}/status", response_model=UserRead)
