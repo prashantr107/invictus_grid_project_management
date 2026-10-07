@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 
+import AdminUsers from "./AdminUsers";
 import { ApiError, clearAccessToken, restoreSession, signIn, signOut, updatePassword, WorkspaceUser } from "./api";
 
 function errorMessage(error: unknown): string {
@@ -132,6 +133,10 @@ export default function App() {
       </form>
       <button className="text-button" type="button" onClick={handleSignOut} disabled={busy}>Sign out</button>
     </section></main>;
+  }
+
+  if (user.role === "ADMIN") {
+    return <AdminUsers admin={user} onSignOut={handleSignOut} signingOut={busy} />;
   }
 
   return <main className="page-shell"><section className="auth-card signed-in-card" aria-labelledby="signed-in-title">

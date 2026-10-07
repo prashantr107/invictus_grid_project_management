@@ -1,6 +1,7 @@
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api/v1").replace(/\/$/, "");
 
 let accessToken: string | null = null;
+let refreshInFlight: Promise<void> | null = null;
 
 export interface WorkspaceUser {
   id: string;
@@ -21,6 +22,13 @@ interface TokenResponse {
 
 interface MessageResponse { message: string; }
 
+export interface UserPage {
+  items: WorkspaceUser[];
+  total: number;
+  offset: number;
+  limit: number;
+}
+
 export class ApiError extends Error {
   constructor(message: string, public status: number) {
     super(message);
@@ -30,17 +38,40 @@ export class ApiError extends Error {
 
 export function clearAccessToken(): void { accessToken = null; }
 
-async function request<T>(path: string, init: RequestInit = {}, authenticated = false): Promise<T> {
+async function sendRequest(path: string, init: RequestInit, authenticated: boolean): Promise<Response> {
   const headers = new Headers(init.headers);
   if (init.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
   if (authenticated && accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
 
-  let response: Response;
   try {
-    response = await fetch(`${apiBaseUrl}${path}`, { ...init, headers, credentials: "include" });
+    return await fetch(`${apiBaseUrl}${path}`, { ...init, headers, credentials: "include" });
   } catch {
     throw new ApiError("The workspace API could not be reached. Check your connection and try again.", 0);
   }
+}
+
+function refreshAccessToken(): Promise<void> {
+  if (!refreshInFlight) {
+    refreshInFlight = request<TokenResponse>("/auth/refresh", { method: "POST" })
+      .then((payload) => { accessToken = payload.access_token; })
+      .finally(() => { refreshInFlight = null; });
+  }
+  return refreshInFlight;
+}
+
+async function request<T>(path: string, init: RequestInit = {}, authenticated = false): Promise<T> {
+  let response = await sendRequest(path, init, authenticated);
+  if (authenticated && response.status === 401) {
+    try {
+      await refreshAccessToken();
+      response = await sendRequest(path, init, true);
+    } catch (refreshError) {
+      clearAccessToken();
+      if (refreshError instanceof ApiError && refreshError.status === 0) throw refreshError;
+      throw new ApiError("Your session has expired. Sign in again.", 401);
+    }
+  }
+
   if (!response.ok) {
     let message = "Something went wrong. Please try again.";
     try {
@@ -79,6 +110,35 @@ export async function updatePassword(currentPassword: string, newPassword: strin
     body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
   }, true);
   return payload.message;
+}
+
+export async function listUsers(offset: number, limit: number, search: string): Promise<UserPage> {
+  const params = new URLSearchParams({ offset: String(offset), limit: String(limit) });
+  if (search.trim()) params.set("search", search.trim());
+  return request<UserPage>(`/users?${params.toString()}`, { method: "GET" }, true);
+}
+
+export interface NewUser {
+  full_name: string;
+  email: string;
+  role: WorkspaceUser["role"];
+  initial_password: string;
+}
+
+export async function createUser(newUser: NewUser): Promise<WorkspaceUser> {
+  return request<WorkspaceUser>("/users", { method: "POST", body: JSON.stringify(newUser) }, true);
+}
+
+export async function setUserActive(userId: string, isActive: boolean): Promise<WorkspaceUser> {
+  return request<WorkspaceUser>(`/users/${userId}/status`, {
+    method: "PATCH", body: JSON.stringify({ is_active: isActive }),
+  }, true);
+}
+
+export async function setUserRole(userId: string, role: WorkspaceUser["role"]): Promise<WorkspaceUser> {
+  return request<WorkspaceUser>(`/users/${userId}/role`, {
+    method: "PATCH", body: JSON.stringify({ role }),
+  }, true);
 }
 
 export async function signOut(): Promise<void> {
