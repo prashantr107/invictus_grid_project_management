@@ -1,8 +1,8 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from enum import Enum
 from uuid import UUID, uuid4
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, JSON, String, Uuid
+from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, JSON, String, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.session import Base
@@ -16,6 +16,13 @@ class Role(str, Enum):
     ADMIN = "ADMIN"
     MANAGER = "MANAGER"
     MEMBER = "MEMBER"
+
+
+class ProjectStatus(str, Enum):
+    PLANNED = "PLANNED"
+    ACTIVE = "ACTIVE"
+    COMPLETED = "COMPLETED"
+    ARCHIVED = "ARCHIVED"
 
 
 class User(Base):
@@ -54,3 +61,33 @@ class AuditLog(Base):
     target_id: Mapped[str] = mapped_column(String(80), nullable=False)
     details: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+
+class Project(Base):
+    __tablename__ = "projects"
+    __table_args__ = (
+        CheckConstraint("status IN ('PLANNED', 'ACTIVE', 'COMPLETED', 'ARCHIVED')", name="ck_projects_status"),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    key: Mapped[str] = mapped_column(String(10), unique=True, index=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(180), nullable=False)
+    description: Mapped[str | None] = mapped_column(String(5000))
+    status: Mapped[str] = mapped_column(String(16), default=ProjectStatus.PLANNED.value, nullable=False)
+    due_date: Mapped[date | None] = mapped_column(Date)
+    created_by: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"), index=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+
+
+class ProjectMember(Base):
+    __tablename__ = "project_members"
+    __table_args__ = (
+        CheckConstraint("role IN ('MANAGER', 'MEMBER')", name="ck_project_members_role"),
+    )
+
+    project_id: Mapped[UUID] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), primary_key=True)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"), primary_key=True, index=True)
+    role: Mapped[str] = mapped_column(String(16), nullable=False)
+    added_by: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    added_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)

@@ -1,9 +1,9 @@
-from datetime import datetime
+from datetime import date, datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, SecretStr, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, SecretStr, field_validator, model_validator
 
-from app.models import Role
+from app.models import ProjectStatus, Role
 
 
 def validate_strong_password(value: str) -> str:
@@ -64,6 +64,99 @@ class UserPage(BaseModel):
     total: int
     offset: int
     limit: int
+
+
+class ProjectCreate(BaseModel):
+    key: str = Field(min_length=2, max_length=10, pattern=r"^[A-Z][A-Z0-9]+$")
+    name: str = Field(min_length=1, max_length=180)
+    description: str | None = Field(default=None, max_length=5000)
+    status: ProjectStatus = ProjectStatus.PLANNED
+    due_date: date | None = None
+    manager_ids: list[UUID] = Field(min_length=1, max_length=100)
+    member_ids: list[UUID] = Field(default_factory=list, max_length=200)
+
+    @field_validator("key", mode="before")
+    @classmethod
+    def normalize_key(cls, value: object) -> str:
+        if not isinstance(value, str):
+            raise ValueError("Project key must be text")
+        return value.strip().upper()
+
+    @field_validator("name")
+    @classmethod
+    def nonblank_name(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Project name cannot be blank")
+        return value
+
+    @field_validator("description")
+    @classmethod
+    def normalize_description(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return value.strip() or None
+
+    @model_validator(mode="after")
+    def unique_disjoint_members(self) -> "ProjectCreate":
+        if len(set(self.manager_ids)) != len(self.manager_ids):
+            raise ValueError("Manager list contains duplicate users")
+        if len(set(self.member_ids)) != len(self.member_ids):
+            raise ValueError("Member list contains duplicate users")
+        if set(self.manager_ids) & set(self.member_ids):
+            raise ValueError("A user cannot be both a Manager and Member on the same project")
+        return self
+
+
+class ProjectMembershipReplace(BaseModel):
+    manager_ids: list[UUID] = Field(min_length=1, max_length=100)
+    member_ids: list[UUID] = Field(default_factory=list, max_length=200)
+
+    @model_validator(mode="after")
+    def unique_disjoint_members(self) -> "ProjectMembershipReplace":
+        if len(set(self.manager_ids)) != len(self.manager_ids):
+            raise ValueError("Manager list contains duplicate users")
+        if len(set(self.member_ids)) != len(self.member_ids):
+            raise ValueError("Member list contains duplicate users")
+        if set(self.manager_ids) & set(self.member_ids):
+            raise ValueError("A user cannot be both a Manager and Member on the same project")
+        return self
+
+
+class ProjectRead(BaseModel):
+    id: UUID
+    key: str
+    name: str
+    description: str | None
+    status: ProjectStatus
+    due_date: date | None
+    created_by: UUID
+    created_at: datetime
+    updated_at: datetime
+    manager_count: int
+    member_count: int
+
+
+class ProjectPage(BaseModel):
+    items: list[ProjectRead]
+    total: int
+    offset: int
+    limit: int
+
+
+class ProjectMemberRead(BaseModel):
+    user_id: UUID
+    full_name: str
+    email: EmailStr
+    account_role: Role
+    project_role: Role
+    is_active: bool
+
+
+class ProjectMembershipRead(BaseModel):
+    project_id: UUID
+    managers: list[ProjectMemberRead]
+    members: list[ProjectMemberRead]
 
 
 class LoginRequest(BaseModel):
