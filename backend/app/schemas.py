@@ -3,7 +3,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, SecretStr, field_validator, model_validator
 
-from app.models import ProjectStatus, Role
+from app.models import ProjectStatus, Role, TaskPriority, TaskStatus, TaskType
 
 
 def validate_strong_password(value: str) -> str:
@@ -157,6 +157,116 @@ class ProjectMembershipRead(BaseModel):
     project_id: UUID
     managers: list[ProjectMemberRead]
     members: list[ProjectMemberRead]
+
+
+class TaskCreate(BaseModel):
+    title: str = Field(min_length=1, max_length=240)
+    description: str | None = Field(default=None, max_length=20000)
+    type: TaskType = TaskType.TASK
+    priority: TaskPriority = TaskPriority.MEDIUM
+    assignee_id: UUID | None = None
+    due_date: date | None = None
+
+    @field_validator("title")
+    @classmethod
+    def nonblank_title(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Task title cannot be blank")
+        return value
+
+    @field_validator("description")
+    @classmethod
+    def normalize_task_description(cls, value: str | None) -> str | None:
+        return value.strip() or None if value is not None else None
+
+
+class TaskUpdate(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=240)
+    description: str | None = Field(default=None, max_length=20000)
+    type: TaskType | None = None
+    priority: TaskPriority | None = None
+    assignee_id: UUID | None = None
+    due_date: date | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def reject_null_required_fields(cls, value: object) -> object:
+        if isinstance(value, dict):
+            for field_name in ("title", "type", "priority"):
+                if field_name in value and value[field_name] is None:
+                    raise ValueError(f"{field_name} cannot be null")
+        return value
+
+    @field_validator("title")
+    @classmethod
+    def nonblank_updated_title(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        value = value.strip()
+        if not value:
+            raise ValueError("Task title cannot be blank")
+        return value
+
+    @field_validator("description")
+    @classmethod
+    def normalize_updated_description(cls, value: str | None) -> str | None:
+        return value.strip() or None if value is not None else None
+
+
+class TaskStatusUpdate(BaseModel):
+    status: TaskStatus
+
+
+class TaskReviewCreate(BaseModel):
+    decision: str = Field(pattern=r"^(APPROVED|CHANGES_REQUIRED)$")
+    feedback: str | None = Field(default=None, max_length=5000)
+
+    @field_validator("feedback")
+    @classmethod
+    def normalize_review_feedback(cls, value: str | None) -> str | None:
+        return value.strip() or None if value is not None else None
+
+    @model_validator(mode="after")
+    def require_changes_feedback(self) -> "TaskReviewCreate":
+        if self.decision == "CHANGES_REQUIRED" and not self.feedback:
+            raise ValueError("Feedback is required when requesting changes")
+        return self
+
+
+class TaskRead(BaseModel):
+    id: UUID
+    project_id: UUID
+    issue_number: int
+    issue_key: str
+    title: str
+    description: str | None
+    type: TaskType
+    priority: TaskPriority
+    status: TaskStatus
+    created_by: UUID
+    assignee_id: UUID | None
+    assignee_name: str | None = None
+    due_date: date | None
+    completed_at: datetime | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class TaskPage(BaseModel):
+    items: list[TaskRead]
+    total: int
+    offset: int
+    limit: int
+
+
+class TaskReviewRead(BaseModel):
+    id: UUID
+    task_id: UUID
+    reviewer_id: UUID
+    decision: str
+    feedback: str | None
+    created_at: datetime
 
 
 class LoginRequest(BaseModel):

@@ -5,7 +5,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.api.dependencies import require_admin
+from app.api.dependencies import get_current_user, require_admin
 from app.db.session import get_db
 from app.models import AuditLog, Project, ProjectMember, Role, User, utc_now
 from app.schemas import (
@@ -128,10 +128,19 @@ def list_projects(
     limit: int = Query(default=20, ge=1, le=100),
     search: str | None = Query(default=None, max_length=180),
     db: Session = Depends(get_db),
-    _: User = Depends(require_admin),
+    actor: User = Depends(get_current_user),
 ) -> ProjectPage:
     statement = select(Project)
     count_statement = select(func.count()).select_from(Project)
+    if actor.role != Role.ADMIN.value:
+        statement = statement.join(ProjectMember, ProjectMember.project_id == Project.id).where(
+            ProjectMember.user_id == actor.id,
+            ProjectMember.role == actor.role,
+        )
+        count_statement = count_statement.join(ProjectMember, ProjectMember.project_id == Project.id).where(
+            ProjectMember.user_id == actor.id,
+            ProjectMember.role == actor.role,
+        )
     if search and search.strip():
         term = f"%{search.strip()}%"
         criteria = or_(Project.key.ilike(term), Project.name.ilike(term))
@@ -152,10 +161,14 @@ def list_projects(
 def get_project_members(
     project_id: UUID,
     db: Session = Depends(get_db),
-    _: User = Depends(require_admin),
+    actor: User = Depends(get_current_user),
 ) -> ProjectMembershipRead:
     if db.get(Project, project_id) is None:
         raise HTTPException(status_code=404, detail="Project not found")
+    if actor.role != Role.ADMIN.value:
+        membership = db.get(ProjectMember, (project_id, actor.id))
+        if actor.role != Role.MANAGER.value or membership is None or membership.role != Role.MANAGER.value:
+            raise HTTPException(status_code=403, detail="Only Admins and assigned project Managers can view project membership")
     rows = db.execute(
         select(ProjectMember, User)
         .join(User, User.id == ProjectMember.user_id)
