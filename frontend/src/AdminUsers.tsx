@@ -15,11 +15,12 @@ function passwordIsStrong(password: string): boolean {
 
 interface AdminUsersProps {
   admin: WorkspaceUser;
+  onNavigate: (view: "people" | "projects") => void;
   onSignOut: () => void;
   signingOut: boolean;
 }
 
-export default function AdminUsers({ admin, onSignOut, signingOut }: AdminUsersProps) {
+export default function AdminUsers({ admin, onNavigate, onSignOut, signingOut }: AdminUsersProps) {
   const [users, setUsers] = useState<WorkspaceUser[]>([]);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
@@ -140,6 +141,10 @@ export default function AdminUsers({ admin, onSignOut, signingOut }: AdminUsersP
           <span className="brand-mark" aria-hidden="true">IG</span>
           <span className="brand-name">INVICTUS <b>GRID</b></span>
         </a>
+        <nav className="admin-nav" aria-label="Administration">
+          <button className="admin-nav-link" type="button" aria-current="page" onClick={() => onNavigate("people")}>People</button>
+          <button className="admin-nav-link" type="button" onClick={() => onNavigate("projects")}>Projects</button>
+        </nav>
         <div className="admin-header-actions">
           <span className="admin-identity"><strong>{admin.full_name}</strong><small>Administrator</small></span>
           <button className="text-button" type="button" onClick={onSignOut} disabled={signingOut}>Sign out</button>

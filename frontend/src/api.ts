@@ -13,6 +13,44 @@ export interface WorkspaceUser {
   created_at: string;
 }
 
+export type ProjectStatus = "PLANNED" | "ACTIVE" | "COMPLETED" | "ARCHIVED";
+
+export interface WorkspaceProject {
+  id: string;
+  key: string;
+  name: string;
+  description: string | null;
+  status: ProjectStatus;
+  due_date: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  manager_count: number;
+  member_count: number;
+}
+
+export interface ProjectPage {
+  items: WorkspaceProject[];
+  total: number;
+  offset: number;
+  limit: number;
+}
+
+export interface ProjectMember {
+  user_id: string;
+  full_name: string;
+  email: string;
+  account_role: WorkspaceUser["role"];
+  project_role: "MANAGER" | "MEMBER";
+  is_active: boolean;
+}
+
+export interface ProjectMembership {
+  project_id: string;
+  managers: ProjectMember[];
+  members: ProjectMember[];
+}
+
 interface TokenResponse {
   access_token: string;
   token_type: string;
@@ -138,6 +176,49 @@ export async function setUserActive(userId: string, isActive: boolean): Promise<
 export async function setUserRole(userId: string, role: WorkspaceUser["role"]): Promise<WorkspaceUser> {
   return request<WorkspaceUser>(`/users/${userId}/role`, {
     method: "PATCH", body: JSON.stringify({ role }),
+  }, true);
+}
+
+export async function listProjects(offset: number, limit: number, search: string): Promise<ProjectPage> {
+  const params = new URLSearchParams({ offset: String(offset), limit: String(limit) });
+  if (search.trim()) params.set("search", search.trim());
+  return request<ProjectPage>(`/projects?${params.toString()}`, { method: "GET" }, true);
+}
+
+export async function listAllUsers(): Promise<WorkspaceUser[]> {
+  const firstPage = await listUsers(0, 100, "");
+  const pages = await Promise.all(
+    Array.from({ length: Math.ceil((firstPage.total - firstPage.items.length) / 100) }, (_, index) =>
+      listUsers((index + 1) * 100, 100, "")),
+  );
+  return [...firstPage.items, ...pages.flatMap((page) => page.items)];
+}
+
+export interface NewProject {
+  key: string;
+  name: string;
+  description: string | null;
+  status: ProjectStatus;
+  due_date: string | null;
+  manager_ids: string[];
+  member_ids: string[];
+}
+
+export async function createProject(project: NewProject): Promise<WorkspaceProject> {
+  return request<WorkspaceProject>("/projects", { method: "POST", body: JSON.stringify(project) }, true);
+}
+
+export async function getProjectMembers(projectId: string): Promise<ProjectMembership> {
+  return request<ProjectMembership>(`/projects/${projectId}/members`, { method: "GET" }, true);
+}
+
+export async function replaceProjectMembers(
+  projectId: string,
+  managerIds: string[],
+  memberIds: string[],
+): Promise<ProjectMembership> {
+  return request<ProjectMembership>(`/projects/${projectId}/members`, {
+    method: "PUT", body: JSON.stringify({ manager_ids: managerIds, member_ids: memberIds }),
   }, true);
 }
 

@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 
 import AdminUsers from "./AdminUsers";
+import AdminProjects from "./AdminProjects";
 import { ApiError, clearAccessToken, restoreSession, signIn, signOut, updatePassword, WorkspaceUser } from "./api";
 
 function errorMessage(error: unknown): string {
@@ -18,6 +19,7 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [adminView, setAdminView] = useState<"people" | "projects">("people");
   const startedRestore = useRef(false);
 
   useEffect(() => {
@@ -136,7 +138,9 @@ export default function App() {
   }
 
   if (user.role === "ADMIN") {
-    return <AdminUsers admin={user} onSignOut={handleSignOut} signingOut={busy} />;
+    return adminView === "people"
+      ? <AdminUsers admin={user} onNavigate={setAdminView} onSignOut={handleSignOut} signingOut={busy} />
+      : <AdminProjects admin={user} onNavigate={setAdminView} onSignOut={handleSignOut} signingOut={busy} />;
   }
 
   return <main className="page-shell"><section className="auth-card signed-in-card" aria-labelledby="signed-in-title">
