@@ -42,8 +42,8 @@ The frontend reads its backend base URL from `VITE_API_BASE_URL` (defaults to `h
 
 ## Current scope
 
-Implemented slices include authentication, Admin account provisioning and management, initial database migrations, the health endpoint, and frontend sign-in and first-login password-change screens. Admins can search and paginate the People directory, create accounts, change roles, and activate or deactivate accounts.
+Implemented slices include authentication, Admin account provisioning and management, project creation and membership management, database migrations, the health endpoint, and frontend sign-in and first-login password-change screens. Admins can search and paginate the People and Projects directories, create accounts and projects, change user roles, manage project assignments, and activate or deactivate accounts.
 
-The frontend keeps access tokens in memory and uses the HttpOnly refresh cookie to renew an expired access token after an authenticated request receives a 401. It retries that request once. Project/task workflows and the non-Admin role dashboards are still planned.
+The frontend keeps access tokens in memory and uses the HttpOnly refresh cookie to renew an expired access token after an authenticated request receives a 401. It retries that request once. Manager/member project views, task workflows, and the non-Admin role dashboards are still planned.
 
 Admin-provisioned accounts must change their initial password through `POST /api/v1/auth/change-password` before using Admin-only operations. Changing a password revokes active sessions, so the user signs in again afterward.
