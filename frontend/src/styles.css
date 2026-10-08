@@ -158,6 +158,37 @@ h1 { max-width: 14ch; margin: 0; color: #f5f6f1; font-size: clamp(32px, 6vw, 43p
 .membership-actions { display: flex; justify-content: flex-end; gap: 10px; padding: 18px 24px 22px; }
 .membership-actions .primary-button { min-height: 35px; margin: 0; padding: 0 14px; font-size: 10px; }
 .membership-actions .button-spinner { border-color: rgb(22 25 15 / 30%); border-top-color: #16190f; }
+.task-browser { overflow: hidden; }
+.task-browser-heading { align-items: flex-end; }
+.task-project-select { width: min(420px, 50%); }
+.task-project-select select, .task-create-form select, .task-create-form input { width: 100%; min-height: 38px; padding: 0 11px; border: 1px solid #3b4038; border-radius: 7px; background: #111310; color: #edf0e8; font: inherit; font-size: 11px; }
+.task-create-form select:focus, .task-create-form input:focus, .task-project-select select:focus, .task-create-form textarea:focus, .review-actions textarea:focus { outline: 2px solid #a9bd34; outline-offset: 1px; }
+.task-create-form { display: grid; grid-template-columns: minmax(220px, 2fr) repeat(4, minmax(100px, 1fr)); gap: 14px 16px; padding: 20px 24px; border-bottom: 1px solid #30342d; background: #1a1c18; }
+.task-form-title, .task-description-field { grid-column: 1 / -1; }
+.task-form-title { display: flex; align-items: center; gap: 10px; }
+.task-form-title h3 { margin: 0; color: #e8ebe2; font-size: 12px; }
+.task-create-form .form-field { min-width: 0; }
+.task-create-form textarea, .review-actions textarea { width: 100%; resize: vertical; padding: 9px 10px; border: 1px solid #3b4038; border-radius: 7px; background: #111310; color: #edf0e8; font: inherit; font-size: 10px; line-height: 1.5; }
+.task-create-button { grid-column: 1 / -1; width: fit-content; min-height: 35px; margin: 0; padding: 0 14px; font-size: 10px; }
+.workspace-task-list { min-height: 100px; }
+.workspace-task { display: flex; align-items: flex-start; gap: 20px; padding: 18px 24px; border-bottom: 1px solid #2b2f29; }
+.workspace-task:last-child { border-bottom: 0; }
+.task-card-main { min-width: 0; flex: 1; }
+.task-card-title { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; }
+.task-card-main h3 { margin: 8px 0 0; color: #edf0e8; font-size: 13px; font-weight: 620; }
+.task-description-copy { margin: 6px 0 0; color: #9da397; font-size: 10px; line-height: 1.5; white-space: pre-wrap; }
+.task-status { padding: 4px 6px; border: 1px solid #40453a; border-radius: 4px; color: #c0c5b8; font-size: 8px; font-weight: 650; letter-spacing: 0.04em; }
+.status-in-progress { border-color: #435a30; background: #202b19; color: #b9d982; }
+.status-pending-review { border-color: #665131; background: #2d261b; color: #e1c58c; }
+.status-changes-required { border-color: #65413a; background: #2c201d; color: #e6a692; }
+.status-completed { border-color: #365251; background: #192725; color: #9bd0c6; }
+.task-actions { width: min(360px, 36%); display: flex; align-items: center; justify-content: flex-end; }
+.task-actions > .secondary-button, .task-actions > .primary-button { flex: 0 0 auto; }
+.task-action-primary { min-height: 34px; margin: 0; padding: 0 12px; font-size: 9px; }
+.review-actions { display: grid; width: 100%; gap: 8px; }
+.review-actions > div { display: flex; justify-content: flex-end; gap: 7px; }
+.review-actions .secondary-button { min-height: 31px; padding: 0 9px; font-size: 9px; }
+.changes-button:hover:not(:disabled) { border-color: #775044; background: #30231f; color: #efb4a1; }
 @media (max-width: 680px) {
   .admin-header { min-height: 66px; padding: 0 16px; }
   .admin-header-actions { gap: 13px; }
@@ -178,6 +209,13 @@ h1 { max-width: 14ch; margin: 0; color: #f5f6f1; font-size: clamp(32px, 6vw, 43p
   .project-row-main { width: calc(100% - 55px); flex: auto; }
   .manage-members-button { margin-left: 53px; }
   .membership-actions { padding: 14px 18px 18px; }
+  .task-browser-heading { align-items: stretch; }
+  .task-project-select { width: 100%; }
+  .task-create-form { grid-template-columns: 1fr 1fr; padding: 18px; }
+  .task-form-title, .task-description-field, .task-create-button { grid-column: 1 / -1; }
+  .workspace-task { flex-direction: column; padding: 16px; }
+  .task-actions { width: 100%; justify-content: flex-start; }
+  .review-actions { max-width: 100%; }
   .user-table th:first-child, .user-table td:first-child { padding-left: 14px; }
   .table-footer { align-items: flex-start; flex-direction: column; gap: 12px; padding: 13px 14px; }
   .pagination-controls { width: 100%; justify-content: space-between; }

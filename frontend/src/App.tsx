@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 
 import AdminUsers from "./AdminUsers";
 import AdminProjects from "./AdminProjects";
+import TasksWorkspace from "./TasksWorkspace";
 import { ApiError, clearAccessToken, restoreSession, signIn, signOut, updatePassword, WorkspaceUser } from "./api";
 
 function errorMessage(error: unknown): string {
@@ -19,7 +20,7 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [adminView, setAdminView] = useState<"people" | "projects">("people");
+  const [adminView, setAdminView] = useState<"people" | "projects" | "tasks">("people");
   const startedRestore = useRef(false);
 
   useEffect(() => {
@@ -138,23 +139,15 @@ export default function App() {
   }
 
   if (user.role === "ADMIN") {
+    if (adminView === "tasks") {
+      return <TasksWorkspace user={user} onNavigateAdmin={setAdminView} onSignOut={handleSignOut} signingOut={busy} />;
+    }
     return adminView === "people"
       ? <AdminUsers admin={user} onNavigate={setAdminView} onSignOut={handleSignOut} signingOut={busy} />
       : <AdminProjects admin={user} onNavigate={setAdminView} onSignOut={handleSignOut} signingOut={busy} />;
   }
 
-  return <main className="page-shell"><section className="auth-card signed-in-card" aria-labelledby="signed-in-title">
-    <div className="signed-in-topline"><Brand /><button className="text-button" type="button" onClick={handleSignOut} disabled={busy}>Sign out</button></div>
-    <p className="eyebrow">{user.role.toLowerCase()} workspace</p>
-    <h1 id="signed-in-title">You’re signed in, {user.full_name.split(" ")[0]}.</h1>
-    <p className="description">Your account is ready. Project and task views will appear here as they are added.</p>
-    <div className="account-summary">
-      <span className="avatar" aria-hidden="true">{user.full_name.trim().charAt(0).toUpperCase()}</span>
-      <span><strong>{user.full_name}</strong><small>{user.email}</small></span>
-      <span className="role-tag">{user.role}</span>
-    </div>
-    {error && <div className="error-banner" role="alert">{error}</div>}
-  </section></main>;
+  return <TasksWorkspace user={user} onSignOut={handleSignOut} signingOut={busy} />;
 }
 
 function Brand() {

@@ -14,6 +14,9 @@ export interface WorkspaceUser {
 }
 
 export type ProjectStatus = "PLANNED" | "ACTIVE" | "COMPLETED" | "ARCHIVED";
+export type TaskType = "TASK" | "FEATURE" | "BUG";
+export type TaskPriority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+export type TaskStatus = "TODO" | "IN_PROGRESS" | "PENDING_REVIEW" | "CHANGES_REQUIRED" | "COMPLETED";
 
 export interface WorkspaceProject {
   id: string;
@@ -50,6 +53,27 @@ export interface ProjectMembership {
   managers: ProjectMember[];
   members: ProjectMember[];
 }
+
+export interface WorkspaceTask {
+  id: string;
+  project_id: string;
+  issue_number: number;
+  issue_key: string;
+  title: string;
+  description: string | null;
+  type: TaskType;
+  priority: TaskPriority;
+  status: TaskStatus;
+  created_by: string;
+  assignee_id: string | null;
+  assignee_name: string | null;
+  due_date: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TaskPage { items: WorkspaceTask[]; total: number; offset: number; limit: number; }
 
 interface TokenResponse {
   access_token: string;
@@ -220,6 +244,36 @@ export async function replaceProjectMembers(
   return request<ProjectMembership>(`/projects/${projectId}/members`, {
     method: "PUT", body: JSON.stringify({ manager_ids: managerIds, member_ids: memberIds }),
   }, true);
+}
+
+export async function listProjectTasks(projectId: string, offset = 0, limit = 100): Promise<TaskPage> {
+  const params = new URLSearchParams({ offset: String(offset), limit: String(limit) });
+  return request<TaskPage>(`/projects/${projectId}/tasks?${params.toString()}`, { method: "GET" }, true);
+}
+
+export interface NewTask {
+  title: string;
+  description: string | null;
+  type: TaskType;
+  priority: TaskPriority;
+  assignee_id: string | null;
+  due_date: string | null;
+}
+
+export async function createTask(projectId: string, task: NewTask): Promise<WorkspaceTask> {
+  return request<WorkspaceTask>(`/projects/${projectId}/tasks`, { method: "POST", body: JSON.stringify(task) }, true);
+}
+
+export async function updateTaskStatus(taskId: string, status: TaskStatus): Promise<WorkspaceTask> {
+  return request<WorkspaceTask>(`/tasks/${taskId}/status`, { method: "PATCH", body: JSON.stringify({ status }) }, true);
+}
+
+export async function submitTaskForReview(taskId: string): Promise<WorkspaceTask> {
+  return request<WorkspaceTask>(`/tasks/${taskId}/submit-review`, { method: "POST" }, true);
+}
+
+export async function reviewTask(taskId: string, decision: "APPROVED" | "CHANGES_REQUIRED", feedback: string | null): Promise<void> {
+  await request(`/tasks/${taskId}/review`, { method: "POST", body: JSON.stringify({ decision, feedback }) }, true);
 }
 
 export async function signOut(): Promise<void> {
