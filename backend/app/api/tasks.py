@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.api.authorization import project_role_for_user
 from app.api.dependencies import get_current_user
 from app.db.session import get_db
 from app.models import (
@@ -28,10 +29,8 @@ def project_for_user(db: Session, project_id: UUID, actor: User, *, managers_onl
     project = db.get(Project, project_id)
     if project is None:
         raise HTTPException(status_code=404, detail="Project not found")
-    if actor.role == Role.ADMIN.value:
-        return project
-    membership = db.get(ProjectMember, (project_id, actor.id))
-    if membership is None or membership.role != actor.role or (managers_only and membership.role != Role.MANAGER.value):
+    role = project_role_for_user(db, project_id, actor)
+    if role is None or (managers_only and role not in (Role.ADMIN.value, Role.MANAGER.value)):
         raise HTTPException(status_code=404, detail="Project not found")
     return project
 
@@ -41,7 +40,7 @@ def task_for_user(db: Session, task_id: UUID, actor: User) -> tuple[Task, Projec
     if task is None:
         raise HTTPException(status_code=404, detail="Task not found")
     project = project_for_user(db, task.project_id, actor)
-    if actor.role == Role.MEMBER.value and task.assignee_id != actor.id:
+    if project_role_for_user(db, task.project_id, actor) == Role.MEMBER.value and task.assignee_id != actor.id:
         raise HTTPException(status_code=404, detail="Task not found")
     return task, project
 
@@ -92,10 +91,7 @@ def validate_assignee(db: Session, project_id: UUID, assignee_id: UUID | None) -
 
 
 def manager_can_access_task(db: Session, task: Task, actor: User) -> None:
-    if actor.role == Role.ADMIN.value:
-        return
-    membership = db.get(ProjectMember, (task.project_id, actor.id))
-    if actor.role != Role.MANAGER.value or membership is None or membership.role != Role.MANAGER.value:
+    if project_role_for_user(db, task.project_id, actor) not in (Role.ADMIN.value, Role.MANAGER.value):
         raise HTTPException(status_code=404, detail="Task not found")
 
 
@@ -152,9 +148,10 @@ def list_project_tasks(
     actor: User = Depends(get_current_user),
 ) -> TaskPage:
     project_for_user(db, project_id, actor)
+    role = project_role_for_user(db, project_id, actor)
     statement = select(Task).where(Task.project_id == project_id)
     count_statement = select(func.count()).select_from(Task).where(Task.project_id == project_id)
-    if actor.role == Role.MEMBER.value:
+    if role == Role.MEMBER.value:
         statement = statement.where(Task.assignee_id == actor.id)
         count_statement = count_statement.where(Task.assignee_id == actor.id)
     if status_filter:
@@ -262,7 +259,7 @@ def update_task_status(
     actor: User = Depends(get_current_user),
 ) -> TaskRead:
     task, _ = task_for_user(db, task_id, actor)
-    if actor.role != Role.MEMBER.value or task.assignee_id != actor.id:
+    if project_role_for_user(db, task.project_id, actor) != Role.MEMBER.value or task.assignee_id != actor.id:
         raise HTTPException(status_code=403, detail="Only the assigned Member can start or resume this task")
     if payload.status != TaskStatus.IN_PROGRESS or task.status not in (
         TaskStatus.TODO.value,
@@ -288,7 +285,7 @@ def submit_task_for_review(
     actor: User = Depends(get_current_user),
 ) -> TaskRead:
     task, _ = task_for_user(db, task_id, actor)
-    if actor.role != Role.MEMBER.value or task.assignee_id != actor.id:
+    if project_role_for_user(db, task.project_id, actor) != Role.MEMBER.value or task.assignee_id != actor.id:
         raise HTTPException(status_code=403, detail="Only the assigned Member can submit this task")
     if task.status != TaskStatus.IN_PROGRESS.value:
         raise HTTPException(status_code=409, detail="Only an in-progress task can be submitted for review")

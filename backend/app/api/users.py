@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.api.dependencies import require_admin
 from app.core.security import hash_password
 from app.db.session import get_db
-from app.models import AuditLog, AuthSession, User, utc_now
+from app.models import AuditLog, AuthSession, ProjectMember, Role, User, utc_now
 from app.schemas import UserCreate, UserPage, UserRead, UserRoleUpdate, UserStatusUpdate
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -93,7 +93,20 @@ def update_user_role(
         raise HTTPException(status_code=400, detail="You cannot remove your own Admin role")
     previous = user.role
     user.role = payload.role.value
-    record_audit(db, actor, "user.role_changed", user, {"previous": previous, "new": user.role})
+    details: dict = {"previous": previous, "new": user.role}
+    if user.role == Role.MEMBER.value:
+        downgraded = list(
+            db.scalars(
+                select(ProjectMember).where(ProjectMember.user_id == user.id, ProjectMember.role == Role.MANAGER.value)
+            ).all()
+        )
+        if downgraded:
+            for membership in downgraded:
+                membership.role = Role.MEMBER.value
+                membership.added_by = actor.id
+                membership.added_at = utc_now()
+            details["memberships_downgraded_to_member"] = [str(m.project_id) for m in downgraded]
+    record_audit(db, actor, "user.role_changed", user, details)
     db.commit()
     db.refresh(user)
     return user

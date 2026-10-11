@@ -5,6 +5,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.api.authorization import project_role_for_user
 from app.api.dependencies import get_current_user, require_admin
 from app.db.session import get_db
 from app.models import AuditLog, Project, ProjectMember, Role, User, utc_now
@@ -134,12 +135,10 @@ def list_projects(
     count_statement = select(func.count()).select_from(Project)
     if actor.role != Role.ADMIN.value:
         statement = statement.join(ProjectMember, ProjectMember.project_id == Project.id).where(
-            ProjectMember.user_id == actor.id,
-            ProjectMember.role == actor.role,
+            ProjectMember.user_id == actor.id
         )
         count_statement = count_statement.join(ProjectMember, ProjectMember.project_id == Project.id).where(
-            ProjectMember.user_id == actor.id,
-            ProjectMember.role == actor.role,
+            ProjectMember.user_id == actor.id
         )
     if search and search.strip():
         term = f"%{search.strip()}%"
@@ -166,8 +165,8 @@ def get_project_members(
     if db.get(Project, project_id) is None:
         raise HTTPException(status_code=404, detail="Project not found")
     if actor.role != Role.ADMIN.value:
-        membership = db.get(ProjectMember, (project_id, actor.id))
-        if actor.role != Role.MANAGER.value or membership is None or membership.role != Role.MANAGER.value:
+        role = project_role_for_user(db, project_id, actor)
+        if role != Role.MANAGER.value:
             raise HTTPException(
                 status_code=403, detail="Only Admins and assigned project Managers can view project membership"
             )
