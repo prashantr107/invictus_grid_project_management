@@ -95,6 +95,13 @@ def manager_can_access_task(db: Session, task: Task, actor: User) -> None:
         raise HTTPException(status_code=404, detail="Task not found")
 
 
+def ensure_project_active(project: Project) -> None:
+    if project.status in ("COMPLETED", "ARCHIVED"):
+        raise HTTPException(
+            status_code=409, detail=f"Task changes are not allowed in a {project.status.lower()} project"
+        )
+
+
 @router.post("/projects/{project_id}/tasks", response_model=TaskRead, status_code=status.HTTP_201_CREATED)
 def create_task(
     project_id: UUID,
@@ -103,10 +110,7 @@ def create_task(
     actor: User = Depends(get_current_user),
 ) -> TaskRead:
     project = project_for_user(db, project_id, actor, managers_only=True)
-    if actor.role not in (Role.ADMIN.value, Role.MANAGER.value):
-        raise HTTPException(status_code=403, detail="Only Admins and project Managers can create tasks")
-    if project.status in ("COMPLETED", "ARCHIVED"):
-        raise HTTPException(status_code=409, detail="Tasks cannot be created in a completed or archived project")
+    ensure_project_active(project)
     validate_assignee(db, project_id, payload.assignee_id)
 
     # Locking the project row serializes issue-number allocation for concurrent task creation.
@@ -213,7 +217,8 @@ def update_task(
     db: Session = Depends(get_db),
     actor: User = Depends(get_current_user),
 ) -> TaskRead:
-    task, _ = task_for_user(db, task_id, actor)
+    task, project = task_for_user(db, task_id, actor)
+    ensure_project_active(project)
     manager_can_access_task(db, task, actor)
     changes = payload.model_dump(exclude_unset=True)
     if not changes:
@@ -304,7 +309,8 @@ def review_task(
     db: Session = Depends(get_db),
     actor: User = Depends(get_current_user),
 ) -> TaskReviewRead:
-    task, _ = task_for_user(db, task_id, actor)
+    task, project = task_for_user(db, task_id, actor)
+    ensure_project_active(project)
     manager_can_access_task(db, task, actor)
     if task.status != TaskStatus.PENDING_REVIEW.value:
         raise HTTPException(status_code=409, detail="Only a task pending review can be reviewed")

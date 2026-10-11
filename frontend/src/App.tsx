@@ -3,16 +3,8 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import AdminUsers from "./AdminUsers";
 import AdminProjects from "./AdminProjects";
 import TasksWorkspace from "./TasksWorkspace";
-import { ApiError, clearAccessToken, restoreSession, signIn, signOut, updatePassword, WorkspaceUser } from "./api";
-
-function errorMessage(error: unknown): string {
-  return error instanceof ApiError ? error.message : "Something went wrong. Please try again.";
-}
-
-function passwordIsStrong(password: string): boolean {
-  return password.length >= 12 && /[a-z]/.test(password) && /[A-Z]/.test(password)
-    && /\d/.test(password) && /[^A-Za-z0-9]/.test(password);
-}
+import { clearAccessToken, restoreSession, signIn, signOut, updatePassword, WorkspaceUser } from "./api";
+import { errorMessage, passwordIsStrong } from "./helpers";
 
 export default function App() {
   const [user, setUser] = useState<WorkspaceUser | null>(null);
@@ -26,7 +18,10 @@ export default function App() {
   useEffect(() => {
     if (startedRestore.current) return;
     startedRestore.current = true;
-    restoreSession().then(setUser).catch(() => clearAccessToken()).finally(() => setCheckingSession(false));
+    restoreSession()
+      .then(setUser)
+      .catch(() => clearAccessToken())
+      .finally(() => setCheckingSession(false));
   }, []);
 
   async function handleSignIn(event: FormEvent<HTMLFormElement>) {
@@ -89,70 +84,160 @@ export default function App() {
   }
 
   if (checkingSession) {
-    return <main className="page-shell"><section className="auth-card loading-card" aria-live="polite">
-      <Brand /><div className="loading-line" /><p className="muted-copy">Checking your workspace session…</p>
-    </section></main>;
+    return (
+      <main className="page-shell">
+        <section className="auth-card loading-card" aria-live="polite">
+          <Brand />
+          <div className="loading-line" />
+          <p className="muted-copy">Checking your workspace session…</p>
+        </section>
+      </main>
+    );
   }
 
   if (!user) {
-    return <main className="page-shell"><section className="auth-card" aria-labelledby="login-title">
-      <Brand />
-      <p className="eyebrow">Club workspace</p>
-      <h1 id="login-title">Welcome back.</h1>
-      <p className="description">Sign in with the account provided by your Invictus Grid administrator.</p>
-      {notice && <div className="notice-banner" role="status">{notice}</div>}
-      {error && <div className="error-banner" role="alert">{error}</div>}
-      <form className="auth-form" onSubmit={handleSignIn}>
-        <label htmlFor="email">Email address</label>
-        <input id="email" name="email" type="email" autoComplete="username" placeholder="you@example.com" required disabled={busy} />
-        <label htmlFor="password">Password</label>
-        <input id="password" name="password" type="password" autoComplete="current-password" required disabled={busy} />
-        <button className="primary-button" type="submit" disabled={busy}>
-          {busy ? <><span className="button-spinner" /> Signing in…</> : "Sign in"}
-        </button>
-      </form>
-      <p className="footnote">Accounts are created by an administrator. Public sign-up is disabled.</p>
-    </section></main>;
+    return (
+      <main className="page-shell">
+        <section className="auth-card" aria-labelledby="login-title">
+          <Brand />
+          <p className="eyebrow">Club workspace</p>
+          <h1 id="login-title">Welcome back.</h1>
+          <p className="description">Sign in with the account provided by your Invictus Grid administrator.</p>
+          {notice && (
+            <div className="notice-banner" role="status">
+              {notice}
+            </div>
+          )}
+          {error && (
+            <div className="error-banner" role="alert">
+              {error}
+            </div>
+          )}
+          <form className="auth-form" onSubmit={handleSignIn}>
+            <label htmlFor="email">Email address</label>
+            <input
+              id="email"
+              name="email"
+              type="email"
+              autoComplete="username"
+              placeholder="you@example.com"
+              required
+              disabled={busy}
+            />
+            <label htmlFor="password">Password</label>
+            <input
+              id="password"
+              name="password"
+              type="password"
+              autoComplete="current-password"
+              required
+              disabled={busy}
+            />
+            <button className="primary-button" type="submit" disabled={busy}>
+              {busy ? (
+                <>
+                  <span className="button-spinner" /> Signing in…
+                </>
+              ) : (
+                "Sign in"
+              )}
+            </button>
+          </form>
+          <p className="footnote">Accounts are created by an administrator. Public sign-up is disabled.</p>
+        </section>
+      </main>
+    );
   }
 
   if (user.must_change_password) {
-    return <main className="page-shell"><section className="auth-card" aria-labelledby="password-title">
-      <Brand />
-      <p className="eyebrow">Secure your account</p>
-      <h1 id="password-title">Set a new password.</h1>
-      <p className="description">Your administrator provided a temporary password. Choose a new one before continuing.</p>
-      {error && <div className="error-banner" role="alert">{error}</div>}
-      <form className="auth-form" onSubmit={handlePasswordChange}>
-        <label htmlFor="current-password">Current password</label>
-        <input id="current-password" name="current-password" type="password" autoComplete="current-password" required disabled={busy} />
-        <label htmlFor="new-password">New password</label>
-        <input id="new-password" name="new-password" type="password" autoComplete="new-password" minLength={12} required disabled={busy} />
-        <p className="field-hint">At least 12 characters, including upper and lowercase letters, a number, and a symbol.</p>
-        <label htmlFor="confirm-password">Confirm new password</label>
-        <input id="confirm-password" name="confirm-password" type="password" autoComplete="new-password" minLength={12} required disabled={busy} />
-        <button className="primary-button" type="submit" disabled={busy}>
-          {busy ? <><span className="button-spinner" /> Updating…</> : "Update password"}
-        </button>
-      </form>
-      <button className="text-button" type="button" onClick={handleSignOut} disabled={busy}>Sign out</button>
-    </section></main>;
+    return (
+      <main className="page-shell">
+        <section className="auth-card" aria-labelledby="password-title">
+          <Brand />
+          <p className="eyebrow">Secure your account</p>
+          <h1 id="password-title">Set a new password.</h1>
+          <p className="description">
+            Your administrator provided a temporary password. Choose a new one before continuing.
+          </p>
+          {error && (
+            <div className="error-banner" role="alert">
+              {error}
+            </div>
+          )}
+          <form className="auth-form" onSubmit={handlePasswordChange}>
+            <label htmlFor="current-password">Current password</label>
+            <input
+              id="current-password"
+              name="current-password"
+              type="password"
+              autoComplete="current-password"
+              required
+              disabled={busy}
+            />
+            <label htmlFor="new-password">New password</label>
+            <input
+              id="new-password"
+              name="new-password"
+              type="password"
+              autoComplete="new-password"
+              minLength={12}
+              required
+              disabled={busy}
+            />
+            <p className="field-hint">
+              At least 12 characters, including upper and lowercase letters, a number, and a symbol.
+            </p>
+            <label htmlFor="confirm-password">Confirm new password</label>
+            <input
+              id="confirm-password"
+              name="confirm-password"
+              type="password"
+              autoComplete="new-password"
+              minLength={12}
+              required
+              disabled={busy}
+            />
+            <button className="primary-button" type="submit" disabled={busy}>
+              {busy ? (
+                <>
+                  <span className="button-spinner" /> Updating…
+                </>
+              ) : (
+                "Update password"
+              )}
+            </button>
+          </form>
+          <button className="text-button" type="button" onClick={handleSignOut} disabled={busy}>
+            Sign out
+          </button>
+        </section>
+      </main>
+    );
   }
 
   if (user.role === "ADMIN") {
     if (adminView === "tasks") {
       return <TasksWorkspace user={user} onNavigateAdmin={setAdminView} onSignOut={handleSignOut} signingOut={busy} />;
     }
-    return adminView === "people"
-      ? <AdminUsers admin={user} onNavigate={setAdminView} onSignOut={handleSignOut} signingOut={busy} />
-      : <AdminProjects admin={user} onNavigate={setAdminView} onSignOut={handleSignOut} signingOut={busy} />;
+    return adminView === "people" ? (
+      <AdminUsers admin={user} onNavigate={setAdminView} onSignOut={handleSignOut} signingOut={busy} />
+    ) : (
+      <AdminProjects admin={user} onNavigate={setAdminView} onSignOut={handleSignOut} signingOut={busy} />
+    );
   }
 
   return <TasksWorkspace user={user} onSignOut={handleSignOut} signingOut={busy} />;
 }
 
 function Brand() {
-  return <div className="brand-lockup" aria-label="Invictus Grid Workspace">
-    <span className="brand-mark" aria-hidden="true">IG</span>
-    <span className="brand-name">INVICTUS <b>GRID</b></span>
-  </div>;
+  return (
+    <div className="brand-lockup" aria-label="Invictus Grid Workspace">
+      <span className="brand-mark" aria-hidden="true">
+        IG
+      </span>
+      <span className="brand-name">
+        INVICTUS <b>GRID</b>
+      </span>
+    </div>
+  );
 }

@@ -1,7 +1,6 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
 import {
-  ApiError,
   createTask,
   getProjectMembers,
   listProjectTasks,
@@ -18,29 +17,17 @@ import {
   WorkspaceTask,
   WorkspaceUser,
 } from "./api";
+import { errorMessage, formatDate } from "./helpers";
 
 const PAGE_SIZE = 20;
 const TASK_TYPES: TaskType[] = ["TASK", "FEATURE", "BUG"];
 const TASK_PRIORITIES: TaskPriority[] = ["LOW", "MEDIUM", "HIGH", "URGENT"];
-
-function errorMessage(error: unknown): string {
-  return error instanceof ApiError ? error.message : "Something went wrong. Please try again.";
-}
 
 function label(value: string): string {
   return value
     .replace(/_/g, " ")
     .toLowerCase()
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
-}
-
-function formatDate(value: string | null): string {
-  if (!value) return "No deadline";
-  return new Date(`${value.slice(0, 10)}T00:00:00`).toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
 }
 
 function ReviewNote({ review }: { review: TaskReview | undefined }) {

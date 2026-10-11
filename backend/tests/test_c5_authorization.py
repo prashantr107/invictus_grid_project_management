@@ -1,6 +1,7 @@
 """C5 regression tests: role changes must not break project access.
 
-Covers the "decouple + reconcile" decision:
+Covers the "decouple + reconcile" decision (see
+docs/adr/0001-role-changes-and-project-access-c5.md):
 - `project_members.role` is the source of truth for project-level authorization.
 - Promotion MEMBER -> MANAGER preserves existing memberships (no access loss, no
   automatic manager authority).
@@ -10,121 +11,12 @@ Covers the "decouple + reconcile" decision:
 Run from backend/:  python -m pytest tests/test_c5_authorization.py -v
 """
 
-from datetime import datetime, timedelta, timezone
-import secrets
-
-import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
-import app.api.dependencies as dependencies_module
-import app.models as models_module
-from app.api.dependencies import get_db
-from app.core.security import create_access_token, hash_refresh_token
-from app.db.session import Base
 from app.main import app
-from app.models import AuthSession, Project, ProjectMember, Role, Task, TaskStatus, User, utc_now
+from app.models import AuditLog, ProjectMember, Role
 
-TEST_DB = create_engine(
-    "sqlite+pysqlite:///:memory:",
-    connect_args={"check_same_thread": False},
-    poolclass=StaticPool,
-)
-SessionLocal = sessionmaker(bind=TEST_DB, autoflush=False, autocommit=False, expire_on_commit=False)
-
-
-def _naive_utc_now():
-    return datetime.now(timezone.utc).replace(tzinfo=None)
-
-
-# SQLite has no timezone support: keep timestamps naive so auth-session expiry
-# comparisons (aware utc_now vs naive column) do not raise.
-dependencies_module.utc_now = _naive_utc_now
-models_module.utc_now = _naive_utc_now
-
-
-def override_get_db():
-    with SessionLocal() as session:
-        yield session
-
-
-app.dependency_overrides[get_db] = override_get_db
-
-
-@pytest.fixture(autouse=True)
-def database():
-    Base.metadata.create_all(TEST_DB)
-    yield
-    Base.metadata.drop_all(TEST_DB)
-
-
-def make_user(db, name, email, role):
-    user = User(
-        email=email,
-        full_name=name,
-        role=role.value,
-        password_hash="not-a-real-hash",
-        is_active=True,
-        must_change_password=False,
-    )
-    db.add(user)
-    db.flush()
-    return user
-
-
-def make_token(user_id):
-    with SessionLocal() as db:
-        session = AuthSession(
-            user_id=user_id,
-            refresh_token_hash=hash_refresh_token(secrets.token_urlsafe(24)),
-            expires_at=utc_now() + timedelta(hours=1),
-        )
-        db.add(session)
-        db.commit()
-        db.refresh(session)
-        return create_access_token(session.user_id, session.id)
-
-
-def make_project(db, key, manager_id, member_id):
-    project = Project(key=key, name=key, status="ACTIVE", created_by=manager_id)
-    db.add(project)
-    db.flush()
-    db.add(ProjectMember(project_id=project.id, user_id=manager_id, role=Role.MANAGER.value, added_by=manager_id))
-    db.add(ProjectMember(project_id=project.id, user_id=member_id, role=Role.MEMBER.value, added_by=manager_id))
-    return project
-
-
-@pytest.fixture
-def world():
-    with SessionLocal() as db:
-        admin = make_user(db, "Admin", "admin@invictusgrid.com", Role.ADMIN)
-        manager = make_user(db, "Manager", "manager@invictusgrid.com", Role.MANAGER)
-        member = make_user(db, "Member", "member@invictusgrid.com", Role.MEMBER)
-        project = make_project(db, "ALPHA", manager.id, member.id)
-        task = Task(
-            project_id=project.id,
-            issue_number=1,
-            issue_key="ALPHA-1",
-            title="First task",
-            status=TaskStatus.TODO.value,
-            created_by=manager.id,
-            assignee_id=member.id,
-        )
-        db.add(task)
-        db.commit()
-        return {
-            "admin_id": admin.id,
-            "manager_id": manager.id,
-            "member_id": member.id,
-            "project_id": project.id,
-            "task_id": task.id,
-        }
-
-
-def auth_headers(user_id):
-    return {"Authorization": f"Bearer {make_token(user_id)}"}
+from support import SessionLocal, auth_headers
 
 
 def test_promotion_preserves_member_access_to_own_tasks(world):
@@ -208,8 +100,6 @@ def test_manager_account_keeps_manager_authority(world):
 
 
 def test_demotion_is_audit_logged(world):
-    from app.models import AuditLog
-
     manager_id = world["manager_id"]
     admin_id = world["admin_id"]
 
