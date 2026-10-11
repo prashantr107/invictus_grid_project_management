@@ -72,7 +72,7 @@ class AuditLog(Base):
     actor_id: Mapped[UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), index=True)
     action: Mapped[str] = mapped_column(String(80), nullable=False)
     target_type: Mapped[str] = mapped_column(String(80), nullable=False)
-    target_id: Mapped[str] = mapped_column(String(80), nullable=False)
+    target_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
     details: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
 
@@ -149,7 +149,7 @@ class Task(Base):
     description: Mapped[str | None] = mapped_column(Text)
     type: Mapped[str] = mapped_column(String(16), default=TaskType.TASK.value, nullable=False)
     priority: Mapped[str] = mapped_column(String(16), default=TaskPriority.MEDIUM.value, nullable=False)
-    status: Mapped[str] = mapped_column(String(24), default=TaskStatus.TODO.value, nullable=False)
+    status: Mapped[str] = mapped_column(String(24), default=TaskStatus.TODO.value, index=True, nullable=False)
     created_by: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"), index=True, nullable=False)
     assignee_id: Mapped[UUID | None] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"), index=True)
     due_date: Mapped[date | None] = mapped_column(Date)

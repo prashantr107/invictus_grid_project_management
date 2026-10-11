@@ -25,7 +25,9 @@ python -m app.bootstrap_admin
 uvicorn app.main:app --reload
 ```
 
-The API is available at `http://localhost:8000`; OpenAPI docs are at `/docs`. The health endpoint is `GET /api/v1/health`.
+The API is available at `http://localhost:8000`; OpenAPI docs are at `/docs`. `GET /api/v1/health` is the readiness probe (it checks database connectivity and returns `503` when it is unavailable); `GET /api/v1/health/live` is the static liveness probe. Every response carries an `X-Request-ID` header and every error uses the shape `{detail, code, details, request_id}`. Requests are logged as one JSON line each (`LOG_LEVEL`, default `INFO`).
+
+Instead of `python -m app.bootstrap_admin`, you can load a full demo dataset into an empty database with `python -m app.seed` (or `npm run backend:seed` from the root). It creates four accounts (`admin@invictusgrid.com`, `manager@invictusgrid.com`, `member@invictusgrid.com`, `dev@invictusgrid.com`) and the `ALPHA` project with tasks; all share the password `DemoPassw0rd!` unless overridden with `SEED_DEMO_PASSWORD`.
 
 Set `JWT_SECRET_KEY` to a random secret of at least 32 characters. For split-site production deployments, configure `COOKIE_SECURE=true` and `REFRESH_COOKIE_SAMESITE=none`; local HTTP development uses `false` and `lax`.
 
@@ -51,6 +53,7 @@ From the repository root, `npm run <task>` drives every common command:
 | `npm run backend:dev` / `frontend:dev` | uvicorn with reload / Vite dev server |
 | `npm run backend:migrate` | `alembic upgrade head` |
 | `npm run backend:migrate:check` | `alembic check` — fails if the models and the database schema have drifted |
+| `npm run backend:seed` | load demo data (4 accounts, the `ALPHA` project, 5 tasks) into an empty database |
 | `npm run backend:install-dev` | install dev deps (ruff, pre-commit) into `backend/.venv` |
 | `npm run lint` | `ruff check` (backend) + `eslint` (frontend) |
 | `npm run typecheck` | `tsc --noEmit` (frontend) |

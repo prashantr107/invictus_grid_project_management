@@ -35,7 +35,7 @@ def main() -> None:
                 actor_id=user.id,
                 action="user.bootstrap_admin_created",
                 target_type="user",
-                target_id=str(user.id),
+                target_id=user.id,
                 details={},
             )
         )

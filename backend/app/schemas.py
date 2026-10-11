@@ -135,6 +135,7 @@ class ProjectRead(BaseModel):
     updated_at: datetime
     manager_count: int
     member_count: int
+    progress: int
 
 
 class ProjectPage(BaseModel):

@@ -10,7 +10,9 @@ from app import models  # noqa: F401
 
 config = context.config
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    # Keep existing application loggers enabled: running migrations in-process
+    # (e.g. a combined start script) must not silence `app.*` structured logs.
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 # Load backend/.env if present without overriding the real environment, then require an explicit URL.
 # No credentials are hardcoded — DATABASE_URL must be provided via the environment or backend/.env.
 load_dotenv()

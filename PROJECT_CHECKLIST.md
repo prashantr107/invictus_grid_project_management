@@ -90,7 +90,7 @@ Make the project runnable and consistent for any developer: reproducible backend
 - [x] Install/start a local PostgreSQL instance and create the `invictus_grid` database — PostgreSQL 16 via Docker (`igw-postgres`, volume `igw-pgdata`, `--restart unless-stopped`); DB `invictus_grid` present
 - [x] Verify `alembic upgrade head` runs end-to-end — 0001→0002→0003 applied; `alembic_version = 0003_tasks`. *(C4 not triggered only because `.env` supplies `JWT_SECRET_KEY`; still to fix in Phase 2)*
 - [x] Verify `python -m app.bootstrap_admin` bootstraps the first Admin — `admin@invictusgrid.com` / `ADMIN` / active created (stdin-fed runner; the command is interactive/non-idempotent)
-- [x] Verify `uvicorn app.main:app --reload` starts and `GET /api/v1/health` responds — `{"status":"ok"}`; real login returned a valid JWT (health endpoint does not itself check DB — Phase 4 gap)
+- [x] Verify `uvicorn app.main:app --reload` starts and `GET /api/v1/health` responds — `{"status":"ok"}`; real login returned a valid JWT (health endpoint did not itself check DB at the time — **closed in Phase 4**, `GET /health` now runs `SELECT 1` and returns `{status, database}`)
 - [x] Verify `npm run dev` serves the SPA at `http://localhost:5173` — HTTP 200, title "Invictus Grid Workspace", `#root` present
 
 #### Tooling (verified 2026-10-10)
@@ -164,7 +164,7 @@ A complete, drift-free schema that supports every PRD/SRS entity, with integrity
 - [x] `attachments` table — task/uploader FKs, `original_name`, unique `storage_key`, `content_type`/`size_bytes` CHECKs (`0004`)
 - [x] `github_links` table — task/submitter FKs, `url` CHECK, `evidence_type` CHECK (`0004`)
 - [x] `notifications` table — recipient FK, `type` CHECK, related `task_id`/`project_id`, `is_read`/`read_at` (`0004`)
-- [x] Indexes on all lookup columns (email, project key, `project_id`, `user_id`, `assignee_id`, `created_by`, `refresh_token_hash`)
+- [x] Indexes on all lookup columns (email, project key, `project_id`, `user_id`, `assignee_id`, `created_by`, `refresh_token_hash`, `storage_key`, `tasks.status`)
 - [x] UUID primary keys throughout; UTC `DateTime(timezone=True)` timestamps
 - [x] Alembic wired via `migrations/env.py` with `target_metadata = Base.metadata`
 - [x] SQLAlchemy models and migrations are structurally consistent for tables/rows/constraints
@@ -182,12 +182,12 @@ A complete, drift-free schema that supports every PRD/SRS entity, with integrity
 - [x] Add matching CHECK constraints, FKs, indexes and Alembic migration(s) for the above — all four tables added in `0004_collaboration.py` with FKs, indexes, and CHECKs; `tests/test_collaboration_schema.py` (9 tests) covers presence, unique storage key, unread default, and CHECK enforcement. Verified 2026-10-11: fresh SQLite `alembic upgrade head` → 12 app tables; `alembic check` → *"No new upgrade operations detected."*; offline `--sql` emits `CREATE UNIQUE INDEX ix_attachments_storage_key`
 
 #### Data & lifecycle
-- [ ] Seed script / fixtures for local demo data (roles, a sample project, tasks)
-- [ ] Server-side project progress storage or computed view (SRS §3.11: completed active / total active × 100, 0 when empty)
-- [ ] Decide retention/archiving policy for `audit_logs` and `activity_logs` (currently unbounded append-only)
-- [ ] Type `audit_logs.target_id` as UUID instead of `String(80)` (`models.py:61`)
-- [ ] Add index on `tasks.status` (and `due_date` if filters are added)
-- [ ] Document schema/ERD (or generate from models)
+- [x] Seed script / fixtures for local demo data — `backend/app/seed.py` (`python -m app.seed` / `npm run backend:seed`) creates 4 accounts, the `ALPHA` project, 5 tasks plus a comment/GitHub link/attachment/notifications/activity/audit rows; testable `seed(db, password)` + `tests/test_seed.py`
+- [x] Server-side project progress (SRS §3.11) — **computed view** (no stored column, so it can never drift): `project_progress()` in `projects.py` returns `round(completed / total * 100)` (0 when empty); exposed as `progress` on `ProjectRead`; `tests/test_project_progress.py`
+- [x] Decide retention/archiving policy for `audit_logs` and `activity_logs` — decided in `docs/adr/0002-log-retention-policy.md`: audit logs kept indefinitely; activity logs 180-day window with a documented manual purge (no MVP background job); logs stay append-only
+- [x] Type `audit_logs.target_id` as UUID instead of `String(80)` — model is `Uuid(as_uuid=True)`; write paths pass UUID objects; migration `0005` retypes the column (`postgresql_using="target_id::uuid"`); `tests/test_audit_log.py`
+- [x] Add index on `tasks.status` — `index=True` on the model + `ix_tasks_status` in migration `0005` (`due_date` not indexed: no due-date filter exists yet)
+- [x] Document schema/ERD — `docs/database-schema.md` (Mermaid ER diagram, referential-action table, notes), maintained from `backend/app/models.py`
 
 ### Dependencies
 Phase 0, Phase 1. New tables depend on Phase 2 (C4) so migrations can run.
@@ -196,7 +196,7 @@ Phase 0, Phase 1. New tables depend on Phase 2 (C4) so migrations can run.
 `alembic upgrade head` and `downgrade` run cleanly on a fresh database; `alembic check` reports no drift; every SRS §4.1 entity exists with constraints and indexes.
 
 ### Current Status
-- **PARTIALLY COMPLETED** — all 11 SRS §4.1 entities now exist (9 original + `comments`, `attachments`, `github_links`, `notifications` via `0004_collaboration`); unique-index drift fixed and enforced by `alembic check` + `tests/test_migrations.py`; hardcoded DB credentials removed. Remaining: the Data & lifecycle items (seed data, progress storage, log retention, `audit_logs.target_id` typing, `tasks.status` index, ERD). Postgres not run in this environment (Docker down); migrations verified on a throwaway SQLite DB.
+- **COMPLETED** — all 11 SRS §4.1 entities exist across migrations `0001` → `0005`; unique-index drift fixed and enforced by `alembic check` + `tests/test_migrations.py`; hardcoded DB credentials removed; demo seed, computed project progress, log-retention ADR, `audit_logs.target_id` UUID, `tasks.status` index, and the ERD are all delivered. Verified 2026-10-11: fresh SQLite `alembic upgrade head` → `alembic check` "No new upgrade operations detected."; Postgres-dialect offline DDL valid; `pytest` → **30 passed**; `ruff check`/`ruff format --check` green. (Postgres itself not run: Docker down; migrations verified on a throwaway SQLite DB + offline Postgres SQL.)
 
 ---
 
@@ -216,16 +216,16 @@ Meet the TRD §3 layered architecture: thin routers, a service layer owning busi
 - [x] `app/bootstrap_admin.py` — guarded one-shot Admin creation (refuses if users exist)
 - [x] `app/main.py` — app factory wiring, limiter state, router mounting under `/api/v1`
 
-#### Missing / required by TRD §3
-- [ ] Service layer: `app/services/{auth,users,projects,tasks}.py` owning state transitions and audit writes
-- [ ] Data-access/repository layer isolating query construction
-- [ ] Move all business rules out of route handlers (currently every router contains validation + state machine + audit logic)
-- [ ] Centralized exception mapping to a consistent API error response
-- [ ] Structured application logging (severity, timestamp, request ID, actor, route, status, duration) — **no `logging` usage exists anywhere in the backend today**
-- [ ] Request-ID middleware / correlation IDs
-- [ ] Health endpoint that actually checks database connectivity (`health.py` returns a static dict)
-- [ ] Lifespan/startup-shutdown hooks (engine disposal, readiness state)
-- [ ] Ensure modules remain independently testable (TRD §3)
+#### Service, repository & observability layer (Phase 4, verified)
+- [x] Service layer: `app/services/{auth,users,projects,tasks}.py` (+ `permissions.py`) own every state transition, authorization-sensitive operation, and audit write; routers no longer commit, query, or audit.
+- [x] Data-access/repository layer: `app/repositories/{sessions,users,projects,tasks}.py` isolate all query construction (pagination, filters, counts, progress, membership joins, row locks); services never build SQLAlchemy statements.
+- [x] All business rules moved out of route handlers: `auth.py`/`users.py`/`projects.py`/`tasks.py` routers are now thin adapters (parse payload → call service → return schema).
+- [x] Centralized exception mapping: `app/core/errors.py` defines `AppError` (`BadRequest`/`Authentication`/`Forbidden`/`NotFound`/`Conflict`/`Validation`) and registers handlers that normalize domain, `HTTPException`, and `RequestValidationError` into `{detail, code, details, request_id}` (no stack traces/secrets; `detail` kept as a string for the existing frontend).
+- [x] Structured application logging: `app/core/logging.py` (`JsonFormatter` + `setup_logging`) emits one JSON object per event with severity, UTC timestamp, logger, message, and — in request context — `request_id`, `actor_id`, `method`, `path`, `status`, `duration_ms`.
+- [x] Request-ID middleware / correlation IDs: `app/middleware/request_context.py` (pure ASGI) reads/assigns `X-Request-ID`, echoes it on the response, and emits the access log; `app/core/context.py` holds the contextvars.
+- [x] Health endpoint checks database connectivity: `GET /health` runs `SELECT 1` and returns `{status, database}` (503 `degraded` when down) without leaking secrets; `GET /health/live` is the static liveness probe.
+- [x] Lifespan/startup-shutdown hooks: `app/main.py` lifespan sets `app.state.ready`, logs startup/shutdown, and disposes the engine; `app/db/session.py` exposes `get_engine()`/`dispose_engine()`.
+- [x] Modules remain independently testable (TRD §3): added `tests/test_service_layer.py` (9 tests calling services directly, no HTTP) and `tests/test_observability.py` (5 tests: request-ID echo/generate, DB-aware health, error-envelope shape, structured access log). Fixed `migrations/env.py` `fileConfig(..., disable_existing_loggers=False)` so in-process migrations no longer silence `app.*` logging.
 
 ### Dependencies
 Phase 0; Phase 2 recommended first (refactor after critical fixes to avoid churn).
@@ -234,7 +234,7 @@ Phase 0; Phase 2 recommended first (refactor after critical fixes to avoid churn
 No authorization or state-transition logic lives in a router; `app/services/` exists and is used by all mutating endpoints; logs are emitted with request IDs; `/health` reports DB status without leaking secrets.
 
 ### Current Status
-- **PARTIALLY COMPLETED** — solid core/db/config/dependencies modules exist, but the service and repository layers do not, and there is no logging or centralized error handling.
+- **COMPLETED** — service + repository layers are in place and used by every router; error mapping, structured logging, request-ID correlation, DB-aware health, and lifespan hooks are implemented and covered by tests.
 
 ---
 
@@ -497,9 +497,9 @@ Consistent, safe input validation and predictable error responses across the who
 - [x] State-transition guards return 409 with a descriptive message
 
 #### Gaps
-- [ ] Global exception handlers (unhandled exceptions currently fall through to FastAPI's default 500 with a generic body)
-- [ ] Unified error envelope per TRD §11 (`code`, `message`, `details`, `request_id`) instead of ad-hoc `{"detail": ...}`
-- [ ] Never leak stack traces/internals in production (verify `debug=False` behavior and custom handlers)
+- [x] Global exception handlers (unhandled exceptions are caught and return a safe 500 body — `app/core/errors.py`)
+- [x] Unified error envelope per TRD §11 (`code`, `detail`/message, `details`, `request_id`) instead of ad-hoc `{"detail": ...}` — `error_payload()` in `app/core/errors.py`
+- [x] Never leak stack traces/internals in production (generic `Exception` handler logs server-side and returns a fixed message; `debug` is off by default)
 - [ ] Uniform 404-vs-403 policy documented and tested
 - [ ] Cross-field validation for project status transitions and archived-project mutations (Phase 2 secondary defects)
 - [ ] Sanitize/validate `search` input semantics (currently raw `ilike` — safe, but behavior undocumented)
@@ -513,7 +513,7 @@ Phase 0; benefits from Phase 4 (central error mapping belongs with services).
 Every error response follows one documented shape with a request ID; no endpoint can return an unhandled traceback; validation and authorization errors are distinguishable and tested.
 
 ### Current Status
-- **PARTIALLY COMPLETED** — per-endpoint Pydantic validation is strong; centralized error handling/envelope is absent.
+- **PARTIALLY COMPLETED** — per-endpoint Pydantic validation is strong; global exception handlers and the unified error envelope are now implemented (via Phase 4). Remaining gaps: documented 404-vs-403 policy, project status-transition validation, search semantics, and upload/URL validation rules.
 
 ---
 
@@ -781,17 +781,17 @@ Every checkbox in Phases 0–15 is `[x]`, staging matches production configurati
 | Metric | Value |
 |---|---|
 | **Total phases** | 17 (Phase 0 → Phase 16) |
-| **Completed phases** | 3 (Phase 0 — analysis, Phase 1 — environment & tooling, Phase 2 — critical defect fixes) |
-| **In-progress phases** | Phases 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 14, 15 **PARTIALLY COMPLETED** |
+| **Completed phases** | 5 (Phase 0 — analysis, Phase 1 — environment & tooling, Phase 2 — critical defect fixes, Phase 3 — database & migrations, Phase 4 — backend architecture) |
+| **In-progress phases** | Phases 5, 6, 7, 8, 9, 10, 12, 13, 14, 15 **PARTIALLY COMPLETED** |
 | **Not started phases** | 2 (Testing, Production Readiness) |
-| **Remaining phases** | 14 of 17 |
+| **Remaining phases** | 12 of 17 |
 
-**Checklist items: 181 of 356 verified complete → 51%**
-*(Phase 0, Phase 1 (runnable environment + tooling) and Phase 2 (critical defect fixes) are fully complete; testing, CI, deployment, security hardening and ~half of the SRS feature set remain. Recalculated on every Change Log entry.)*
+**Checklist items: 199 of 356 verified complete → 56%**
+*(Phase 0, Phase 1 (runnable environment + tooling), Phase 2 (critical defect fixes), Phase 3 (database & migrations) and Phase 4 (backend architecture) are complete; testing, CI, deployment, security hardening and ~half of the SRS feature set remain. Recalculated on every Change Log entry.)*
 
-**Verified-complete highlights:** auth + session lifecycle, RBAC/IDOR guards, user provisioning, projects + memberships, task lifecycle + review workflow, audit/activity writes, all 11 SRS §4.1 tables across 4 migrations, pagination and batched queries, full Admin/Member/Manager UIs for those flows, strict-TS frontend that typechecks clean.
+**Verified-complete highlights:** auth + session lifecycle, RBAC/IDOR guards, user provisioning, projects + memberships, task lifecycle + review workflow, audit/activity writes, all 11 SRS §4.1 tables across 5 migrations, computed project progress, demo seed, pagination and batched queries, thin routers over a service + repository layer, centralized error envelope, structured JSON logging with request IDs, DB-aware health/readiness, lifespan hooks, full Admin/Member/Manager UIs for those flows, strict-TS frontend that typechecks clean.
 
-**Largest outstanding bodies of work:** Phase 3 data & lifecycle items, tests + CI (Phase 11), service-layer refactor (Phase 4), SRS feature parity (Phase 9), deployment (Phase 14), security hardening (Phase 12).
+**Largest outstanding bodies of work:** tests + CI (Phase 11), SRS feature parity (Phase 9), deployment (Phase 14), security hardening (Phase 12).
 
 ---
 
@@ -805,9 +805,9 @@ Ordered by priority — complete top-down:
 4. **C4 — Uncouple Alembic from `JWT_SECRET_KEY`** (`migrations/env.py:14`). *(Critical)* — **✅ DONE 2026-10-11**
 5. **Phase 1 — Make the backend runnable + tooling**: `.venv`, `.env`, local PostgreSQL, migrations/bootstrap/uvicorn verified, frontend dev/build verified, plus ruff/eslint/prettier/root-task-runner/dependency-lock/pre-commit. *(Critical — everything else needs a running system)* — **✅ DONE 2026-10-10**
 6. **Phase 11 bootstrap — add pytest + a test harness** and cover the auth/IDOR/state-machine paths before refactoring. *(High)*
-7. **Phase 4 — extract the service layer** so business rules are testable (TRD §3). *(High)*
+7. **Phase 4 — extract the service layer** so business rules are testable (TRD §3). *(High)* — **✅ DONE 2026-10-11** (services + repositories + observability; Phase 4 → COMPLETED)
 8. **C5 — decide and implement role/membership reconciliation** so role changes stop breaking project access. *(High)* — **✅ DONE 2026-10-11** (decouple + reconcile; ADR-0001)
-9. **Phase 10 — centralized error envelope + global exception handlers.** *(Medium)*
+9. **Phase 10 — centralized error envelope + global exception handlers.** *(Medium)* — **✅ error envelope + handlers DONE 2026-10-11** (via Phase 4; remaining Phase 10 items are the Phase 12 security headers/scanning)
 10. **Phase 5 — proxy-aware rate limiting, limits on `refresh`/`change-password`, failed-login lockout.** *(Medium)*
 11. **Phase 6/9 slice — review-feedback read path, project lifecycle endpoints, then comments → GitHub evidence → attachments → notifications → dashboards.** *(Medium, delivers SRS acceptance criteria)*
 12. **Phase 12 — security headers + CI scanning.** *(Medium)*
@@ -831,3 +831,5 @@ Ordered by priority — complete top-down:
 | 2026-10-11 | Repo-wide Prettier cleanup of pre-existing formatting drift. | Ran Prettier on the 6 files flagged by `npm run format:check`: `index.html`, `src/main.tsx`, `src/vite-env.d.ts`, `tsconfig.json`, `vite.config.ts` differed only by working-tree CRLF (zero content change in git); `src/styles.css` was minified-style and was expanded (1192/217 lines). No semantics changed — `vite build` emits byte-identical assets (`index-D_D17azI.js`, `index_DD_XoXn5.css`); `eslint`/`tsc` green; `prettier --check .` now passes repo-wide. Root cause: `core.autocrlf=true` checks out CRLF while Prettier defaults to LF — a `.gitattributes` (`* text=auto eol=lf`) would make this durable. No checklist boxes changed (stays **173/356 → 49%**). | Optionally add the `.gitattributes` EOL policy; then commit the Phase 2 secondary-defect + formatting changes. |
 | 2026-10-11 | **Phase 3 "Known schema issues" fixed and tested** (drift, `alembic check`, hardcoded URL). | **Drift:** edited `0001_auth_foundation.py` + `0002_projects.py` to drop the inline `sa.UniqueConstraint` and emit `ix_users_email` / `ix_projects_key` as `unique=True`, matching `models.py`. **Workflow:** added `npm run backend:migrate:check` (`alembic check`) and `backend/tests/test_migrations.py` (3 tests: full-chain no-drift via `command.check`, unique-index assertions, clean `downgrade base`). **Credentials:** removed the `postgres:postgres` default from `alembic.ini` (URL now injected by `migrations/env.py`) and made `config.py` `database_url` required; `env.py` now `load_dotenv()`s `backend/.env` and raises a clear `RuntimeError` when `DATABASE_URL` is missing; added `path_separator = os` to silence an Alembic deprecation. **Verified:** offline `upgrade --sql` → `CREATE UNIQUE INDEX`; fresh SQLite `alembic check` → *"No new upgrade operations detected."*; `npm run backend:migrate:check` via task runner → clean; missing-URL guard raises (exit 1); `pytest` → **14 passed** (11 prior + 3); `ruff check`/`ruff format --check` green. Flipped the 3 Phase 3 known-issue boxes to `[x]`; overall **176/356 → 49%**; Phase 3 stays **PARTIALLY COMPLETED** (4 SRS §4.1 tables still missing). Note: existing dev DBs migrated before this change need a rebuild (`downgrade base` + `upgrade head`, or drop the `igw-pgdata` volume). | Add the missing SRS §4.1 tables (`comments`, `attachments`, `github_links`, `notifications`) with constraints/indexes, then commit the Phase 2 + Phase 3 changes. |
 | 2026-10-11 | **Phase 3 SRS §4.1 tables added** — all 11 core entities now exist. | Added 4 SQLAlchemy models (`Comment`, `Attachment`, `GithubLink`, `Notification` + `EvidenceType`/`NotificationType` enums) and migration `0004_collaboration.py` (`down_revision = 0003_tasks`). Constraints follow SRS §3.7–3.10: `comments` (task/author FKs, `body`, timestamps); `attachments` (task/uploader FKs, `original_name`, **unique `storage_key` index**, `content_type` CHECK limited to PNG/JPG/JPEG/PDF/DOCX MIME types, `size_bytes` CHECK ≥ 0); `github_links` (task/submitter FKs, `url LIKE 'http%'` CHECK, `evidence_type` CHECK); `notifications` (recipient FK CASCADE, `type` CHECK, nullable `task_id`/`project_id`, `is_read` default false, `read_at`). Added `backend/tests/test_collaboration_schema.py` (9 tests). **Verified:** fresh SQLite `alembic upgrade head` → 12 app tables; `alembic check` → *"No new upgrade operations detected."*; offline `--sql` emits `CREATE UNIQUE INDEX ix_attachments_storage_key`; `pytest` → **23 passed** (14 prior + 9); `ruff check`/`ruff format --check` green. Flipped the 5 "Missing SRS tables" boxes to `[x]`; overall **181/356 → 51%**. Phase 3 stays **PARTIALLY COMPLETED** (Data & lifecycle items remain). Working tree (Phase 3) still **uncommitted**. | Commit the Phase 3 changes; then tackle the Phase 3 Data & lifecycle items (seed data, progress storage, log retention, `audit_logs.target_id` typing, `tasks.status` index, ERD) or move to the Phase 4 service-layer refactor. |
+| 2026-10-11 | **Phase 3 Data & lifecycle complete** — Phase 3 → **COMPLETED**. | **Seed:** `backend/app/seed.py` (`python -m app.seed`, `npm run backend:seed`) creates 4 accounts + the `ALPHA` project (5 tasks, comment, GitHub link, attachment, notifications, activity + audit rows); fails safe when accounts exist; `tests/test_seed.py` (2). **Progress:** added `project_progress()` (computed, SRS §3.11) to `projects.py`, exposed as `progress: int` on `ProjectRead` + `WorkspaceProject`, displayed on the Admin project card; `tests/test_project_progress.py` (3). **Retention:** `docs/adr/0002-log-retention-policy.md` (audit logs kept indefinitely; activity logs 180-day window, manual purge, no MVP job). **Schema:** migration `0005_audit_target_uuid_task_status_index` retypes `audit_logs.target_id` → `Uuid(as_uuid=True)` (writes now pass UUIDs, not `str(...)`) and adds `ix_tasks_status`; `tests/test_audit_log.py` (1) + migration index assertion. **Docs:** `docs/database-schema.md` (Mermaid ERD + referential actions). **Verified:** fresh SQLite `alembic upgrade head` (0005) → `alembic check` *"No new upgrade operations detected."*; Postgres-dialect offline DDL → `ALTER TABLE audit_logs ALTER COLUMN target_id TYPE UUID USING target_id::uuid` + `CREATE INDEX ix_tasks_status`; `pytest` → **30 passed** (23 prior + 7); `ruff check`/`ruff format --check` green; frontend `prettier --check` + `eslint` + `vite build` green. Flipped the 6 Data & lifecycle boxes to `[x]`; Phase 3 → **COMPLETED**; completed phases 3 → 4; remaining 14 → 13; overall **187/356 → 53%**. All Phase 3 changes remain **uncommitted**. | Commit the Phase 3 changes; then start the Phase 4 service-layer refactor (or close the Phase 11 test/CI harness first). |
+| 2026-10-11 | **Phase 4 — Backend Architecture complete** (service + repository + observability layers); Phase 4 → **COMPLETED**. | **Layering:** added `app/repositories/{sessions,users,projects,tasks}.py` (all query construction) and `app/services/{auth,users,projects,tasks,permissions}.py` (state transitions, authorization, audit writes); rewrote `api/{auth,users,projects,tasks}.py` as thin adapters that parse → call service → return schema (routers no longer query, commit, or audit); moved project authorization into `services/permissions.py` (deleted `api/authorization.py`). **Errors:** `app/core/errors.py` (`AppError` hierarchy + handlers) normalizes domain/`HTTPException`/validation errors into `{detail, code, details, request_id}` (no stack traces; `detail` stays a string for the frontend). **Logging/observability:** `app/core/{context,logging}.py` + `app/middleware/request_context.py` (pure ASGI) assign/echo `X-Request-ID` and emit one JSON access line per request (severity, timestamp, request_id, actor_id, route, status, duration); `app/core/config.py` gains `log_level`. **Health/ops:** `api/health.py` now runs `SELECT 1` (`GET /health` → `{status, database}`, 503 when down) with static `GET /health/live`; `app/main.py` lifespan sets `app.state.ready` and disposes the engine (`db/session.py` → `get_engine()`/`dispose_engine()`). **Defect fixed:** `migrations/env.py` `fileConfig(..., disable_existing_loggers=False)` so in-process migrations no longer silence `app.*` logs. **Tests:** `tests/test_service_layer.py` (9, no HTTP) + `tests/test_observability.py` (5); `tests/support.py` patches the service clock. **Verified:** `pytest` → **44 passed** (30 prior + 14); `ruff check`/`ruff format --check` green; booted app under `TestClient` lifespan → readiness `{status: ok, database: ok}`, request-ID echo/generation and JSON access logs confirmed; OpenAPI paths unchanged. Flipped the 9 Phase 4 boxes + 3 Phase 10 error-handling boxes to `[x]`; Phase 4 → **COMPLETED**; completed phases 4 → 5; remaining 13 → 12; overall **187/356 → 199/356 (56%)**. All Phase 4 changes remain **uncommitted**. | Commit the Phase 3 + Phase 4 changes; then either close the Phase 11 test/CI harness (pytest layout exists — add the role×endpoint matrix, frontend Vitest, coverage, CI) or continue SRS feature parity (Phase 9). |

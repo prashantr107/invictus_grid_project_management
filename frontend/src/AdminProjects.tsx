@@ -400,6 +400,7 @@ export default function AdminProjects({ admin, onNavigate, onSignOut, signingOut
                       <span>
                         {project.member_count} Member{project.member_count === 1 ? "" : "s"}
                       </span>
+                      <span>{project.progress}% complete</span>
                       <span>Due {formatDate(project.due_date)}</span>
                     </div>
                   </div>

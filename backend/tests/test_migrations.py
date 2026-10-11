@@ -59,3 +59,15 @@ def test_downgrade_to_base_is_clean(tmp_path, monkeypatch):
 
     inspector = inspect(create_engine(f"sqlite+pysqlite:///{db_path}"))
     assert inspector.get_table_names() == ["alembic_version"]
+
+
+def test_task_status_index_created(tmp_path, monkeypatch):
+    db_path = tmp_path / "migration_task_status.db"
+    config = _config(db_path, monkeypatch)
+    command.upgrade(config, "head")
+
+    inspector = inspect(create_engine(f"sqlite+pysqlite:///{db_path}"))
+    index_names = {i["name"] for i in inspector.get_indexes("tasks")}
+    assert "ix_tasks_status" in index_names
+    columns = {c["name"] for c in inspector.get_columns("audit_logs")}
+    assert "target_id" in columns

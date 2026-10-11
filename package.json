@@ -14,6 +14,7 @@
     "backend:migrate:down": "node scripts/py.mjs -m alembic downgrade -1",
     "backend:migrate:check": "node scripts/py.mjs -m alembic check",
     "backend:bootstrap": "node scripts/py.mjs -m app.bootstrap_admin",
+    "backend:seed": "node scripts/py.mjs -m app.seed",
     "backend:dev": "node scripts/py.mjs -m uvicorn app.main:app --reload",
     "backend:lint": "node scripts/py.mjs -m ruff check .",
     "backend:format": "node scripts/py.mjs -m ruff format .",

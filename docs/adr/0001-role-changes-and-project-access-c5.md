@@ -44,14 +44,14 @@ Reconciliation performed in `update_user_role` in the same transaction as the ro
 - **Demotion takes effect immediately** — the manager's memberships are rewritten to MEMBER, so manager powers are gone even where stale rows could have remained.
 - **No schema change.** Behavior only.
 - **Assignee constraint unchanged:** `validate_assignee` still requires the account role `MEMBER`, so a promoted (now MANAGER-account) user can finish their previously assigned tasks but cannot be assigned new ones until explicitly reassigned.
-- Authorization helpers are centralized (`app/api/authorization.py`) so routers stay thin and the rule is testable.
+- Authorization helpers are centralized (`app/services/permissions.py`) so routers stay thin and the rule is testable.
 
 ## Implementation summary
 
-- `backend/app/api/authorization.py` (new): `effective_project_role()` (pure) + `project_role_for_user()` (DB-backed).
-- `backend/app/api/projects.py`: `list_projects` scopes by membership existence only; `get_project_members` uses the effective role.
-- `backend/app/api/tasks.py`: `project_for_user`, `task_for_user`, `list_project_tasks`, `update_task_status`, `submit_task_for_review`, `manager_can_access_task` all use the effective role; the executor guards allow an effective MEMBER assignee to work their own tasks.
-- `backend/app/api/users.py`: `update_user_role` reconciles MANAGER memberships on demotion and records them in the audit `details`.
+- `backend/app/services/permissions.py`: `effective_project_role()` (pure) + `project_role_for_user()` (DB-backed). (Originally `backend/app/api/authorization.py`; relocated to the service layer during the Phase 4 refactor.)
+- `backend/app/services/projects.py`: `list_projects` scopes by membership existence only; `get_members` uses the effective role.
+- `backend/app/services/tasks.py`: `project_for_user`, `task_for_user`, `list_tasks`, `start_task`, `submit_for_review`, `_manager_can_access_task` all use the effective role; the executor guards allow an effective MEMBER assignee to work their own tasks.
+- `backend/app/services/users.py`: `change_role` reconciles MANAGER memberships on demotion and records them in the audit `details`.
 - `backend/tests/test_c5_authorization.py`: 5 regression tests (promotion preserves access, promotion grants no manager authority, demotion reconciles + blocks escalation, manager authority preserved, demotion audited). `python -m pytest tests/test_c5_authorization.py` → 5 passed.
 
 ## Migration / backfill plan

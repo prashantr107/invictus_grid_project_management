@@ -11,8 +11,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-import app.api.dependencies as dependencies_module
 import app.models as models_module
+import app.services.auth as auth_service_module
 from app.core.security import create_access_token, hash_refresh_token
 from app.models import AuthSession, Project, ProjectMember, Role, User, utc_now
 
@@ -30,8 +30,8 @@ def _naive_utc_now():
 
 # SQLite has no timezone support: keep timestamps naive so auth-session expiry
 # comparisons (aware utc_now vs naive column) do not raise.
-dependencies_module.utc_now = _naive_utc_now
 models_module.utc_now = _naive_utc_now
+auth_service_module.utc_now = _naive_utc_now
 
 
 def override_get_db():

@@ -30,6 +30,7 @@ export interface WorkspaceProject {
   updated_at: string;
   manager_count: number;
   member_count: number;
+  progress: number;
 }
 
 export interface ProjectPage {

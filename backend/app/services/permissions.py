@@ -1,4 +1,4 @@
-"""Project-level authorization.
+"""Project-level authorization rules.
 
 `project_members.role` is the source of truth for a user's role inside a
 project. The account role (`users.role`) is only a capability cap:
@@ -15,7 +15,8 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
-from app.models import ProjectMember, Role, User
+from app.models import Role, User
+from app.repositories import projects as projects_repo
 
 
 def effective_project_role(account_role: str, membership_role: str | None) -> str | None:
@@ -31,5 +32,5 @@ def effective_project_role(account_role: str, membership_role: str | None) -> st
 def project_role_for_user(db: Session, project_id: UUID, actor: User) -> str | None:
     if actor.role == Role.ADMIN.value:
         return Role.ADMIN.value
-    membership = db.get(ProjectMember, (project_id, actor.id))
+    membership = projects_repo.membership(db, project_id, actor.id)
     return effective_project_role(actor.role, membership.role if membership else None)
