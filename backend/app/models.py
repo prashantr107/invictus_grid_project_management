@@ -182,3 +182,89 @@ class ActivityLog(Base):
     action: Mapped[str] = mapped_column(String(80), nullable=False)
     details: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+
+class Comment(Base):
+    __tablename__ = "comments"
+
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    task_id: Mapped[UUID] = mapped_column(ForeignKey("tasks.id", ondelete="CASCADE"), index=True, nullable=False)
+    author_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"), index=True, nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+
+class Attachment(Base):
+    __tablename__ = "attachments"
+    __table_args__ = (
+        CheckConstraint("size_bytes >= 0", name="ck_attachments_size_non_negative"),
+        CheckConstraint(
+            "content_type IN ('image/png', 'image/jpeg', 'application/pdf', "
+            "'application/vnd.openxmlformats-officedocument.wordprocessingml.document')",
+            name="ck_attachments_content_type",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    task_id: Mapped[UUID] = mapped_column(ForeignKey("tasks.id", ondelete="CASCADE"), index=True, nullable=False)
+    uploader_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"), index=True, nullable=False)
+    original_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    storage_key: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
+    content_type: Mapped[str] = mapped_column(String(127), nullable=False)
+    size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+
+class EvidenceType(str, Enum):
+    REPOSITORY = "REPOSITORY"
+    COMMIT = "COMMIT"
+    PULL_REQUEST = "PULL_REQUEST"
+    OTHER = "OTHER"
+
+
+class GithubLink(Base):
+    __tablename__ = "github_links"
+    __table_args__ = (
+        CheckConstraint(
+            "evidence_type IN ('REPOSITORY', 'COMMIT', 'PULL_REQUEST', 'OTHER')",
+            name="ck_github_links_evidence_type",
+        ),
+        CheckConstraint("url LIKE 'http%'", name="ck_github_links_url"),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    task_id: Mapped[UUID] = mapped_column(ForeignKey("tasks.id", ondelete="CASCADE"), index=True, nullable=False)
+    submitted_by: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"), index=True, nullable=False)
+    url: Mapped[str] = mapped_column(String(2048), nullable=False)
+    evidence_type: Mapped[str] = mapped_column(String(24), default=EvidenceType.OTHER.value, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+
+class NotificationType(str, Enum):
+    TASK_ASSIGNED = "TASK_ASSIGNED"
+    REVIEW_REQUESTED = "REVIEW_REQUESTED"
+    CHANGES_REQUIRED = "CHANGES_REQUIRED"
+    TASK_APPROVED = "TASK_APPROVED"
+    PROJECT_ADDED = "PROJECT_ADDED"
+
+
+class Notification(Base):
+    __tablename__ = "notifications"
+    __table_args__ = (
+        CheckConstraint(
+            "type IN ('TASK_ASSIGNED', 'REVIEW_REQUESTED', 'CHANGES_REQUIRED', 'TASK_APPROVED', 'PROJECT_ADDED')",
+            name="ck_notifications_type",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    recipient_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)
+    type: Mapped[str] = mapped_column(String(40), nullable=False)
+    task_id: Mapped[UUID | None] = mapped_column(ForeignKey("tasks.id", ondelete="CASCADE"), index=True)
+    project_id: Mapped[UUID | None] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), index=True)
+    is_read: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)

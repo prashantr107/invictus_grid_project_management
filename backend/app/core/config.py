@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     app_name: str = "Invictus Grid Workspace API"
     environment: str = "development"
     api_v1_prefix: str = "/api/v1"
-    database_url: str = "postgresql+psycopg://postgres:postgres@localhost:5432/invictus_grid"
+    database_url: str
     frontend_origins: str = "http://localhost:5173"
     jwt_secret_key: str = Field(min_length=32)
     access_token_minutes: int = 15

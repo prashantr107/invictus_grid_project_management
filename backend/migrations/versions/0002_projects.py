@@ -27,9 +27,8 @@ def upgrade() -> None:
         sa.CheckConstraint("status IN ('PLANNED', 'ACTIVE', 'COMPLETED', 'ARCHIVED')", name="ck_projects_status"),
         sa.ForeignKeyConstraint(["created_by"], ["users.id"], ondelete="RESTRICT"),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("key"),
     )
-    op.create_index("ix_projects_key", "projects", ["key"], unique=False)
+    op.create_index("ix_projects_key", "projects", ["key"], unique=True)
     op.create_index("ix_projects_created_by", "projects", ["created_by"], unique=False)
 
     op.create_table(

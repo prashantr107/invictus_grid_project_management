@@ -12,6 +12,7 @@
     "backend:install-dev": "node scripts/py.mjs -m pip install -r requirements-dev.txt",
     "backend:migrate": "node scripts/py.mjs -m alembic upgrade head",
     "backend:migrate:down": "node scripts/py.mjs -m alembic downgrade -1",
+    "backend:migrate:check": "node scripts/py.mjs -m alembic check",
     "backend:bootstrap": "node scripts/py.mjs -m app.bootstrap_admin",
     "backend:dev": "node scripts/py.mjs -m uvicorn app.main:app --reload",
     "backend:lint": "node scripts/py.mjs -m ruff check .",

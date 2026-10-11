@@ -2,6 +2,7 @@ from logging.config import fileConfig
 import os
 
 from alembic import context
+from dotenv import load_dotenv
 from sqlalchemy import engine_from_config, pool
 
 from app.db.session import Base
@@ -10,9 +11,13 @@ from app import models  # noqa: F401
 config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
-config.set_main_option(
-    "sqlalchemy.url", os.getenv("DATABASE_URL", "postgresql+psycopg://postgres:postgres@localhost:5432/invictus_grid")
-)
+# Load backend/.env if present without overriding the real environment, then require an explicit URL.
+# No credentials are hardcoded — DATABASE_URL must be provided via the environment or backend/.env.
+load_dotenv()
+database_url = os.getenv("DATABASE_URL")
+if not database_url:
+    raise RuntimeError("DATABASE_URL is not set. Export it, or add it to backend/.env, before running Alembic.")
+config.set_main_option("sqlalchemy.url", database_url)
 target_metadata = Base.metadata
 
 

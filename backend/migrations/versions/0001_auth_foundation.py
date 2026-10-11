@@ -26,9 +26,8 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.CheckConstraint("role IN ('ADMIN', 'MANAGER', 'MEMBER')", name="ck_users_role"),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("email"),
     )
-    op.create_index("ix_users_email", "users", ["email"], unique=False)
+    op.create_index("ix_users_email", "users", ["email"], unique=True)
     op.create_table(
         "auth_sessions",
         sa.Column("id", sa.Uuid(), nullable=False),

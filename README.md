@@ -50,6 +50,7 @@ From the repository root, `npm run <task>` drives every common command:
 | `npm run db:up` / `db:down` | start / stop the local Postgres container (`igw-postgres`) |
 | `npm run backend:dev` / `frontend:dev` | uvicorn with reload / Vite dev server |
 | `npm run backend:migrate` | `alembic upgrade head` |
+| `npm run backend:migrate:check` | `alembic check` — fails if the models and the database schema have drifted |
 | `npm run backend:install-dev` | install dev deps (ruff, pre-commit) into `backend/.venv` |
 | `npm run lint` | `ruff check` (backend) + `eslint` (frontend) |
 | `npm run typecheck` | `tsc --noEmit` (frontend) |
