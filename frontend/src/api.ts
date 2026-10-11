@@ -73,7 +73,22 @@ export interface WorkspaceTask {
   updated_at: string;
 }
 
-export interface TaskPage { items: WorkspaceTask[]; total: number; offset: number; limit: number; }
+export interface TaskPage {
+  items: WorkspaceTask[];
+  total: number;
+  offset: number;
+  limit: number;
+}
+
+export interface TaskReview {
+  id: string;
+  task_id: string;
+  reviewer_id: string;
+  reviewer_name: string | null;
+  decision: "APPROVED" | "CHANGES_REQUIRED";
+  feedback: string | null;
+  created_at: string;
+}
 
 interface TokenResponse {
   access_token: string;
@@ -82,7 +97,9 @@ interface TokenResponse {
   user: WorkspaceUser;
 }
 
-interface MessageResponse { message: string; }
+interface MessageResponse {
+  message: string;
+}
 
 export interface UserPage {
   items: WorkspaceUser[];
@@ -92,13 +109,18 @@ export interface UserPage {
 }
 
 export class ApiError extends Error {
-  constructor(message: string, public status: number) {
+  constructor(
+    message: string,
+    public status: number,
+  ) {
     super(message);
     this.name = "ApiError";
   }
 }
 
-export function clearAccessToken(): void { accessToken = null; }
+export function clearAccessToken(): void {
+  accessToken = null;
+}
 
 async function sendRequest(path: string, init: RequestInit, authenticated: boolean): Promise<Response> {
   const headers = new Headers(init.headers);
@@ -115,8 +137,12 @@ async function sendRequest(path: string, init: RequestInit, authenticated: boole
 function refreshAccessToken(): Promise<void> {
   if (!refreshInFlight) {
     refreshInFlight = request<TokenResponse>("/auth/refresh", { method: "POST" })
-      .then((payload) => { accessToken = payload.access_token; })
-      .finally(() => { refreshInFlight = null; });
+      .then((payload) => {
+        accessToken = payload.access_token;
+      })
+      .finally(() => {
+        refreshInFlight = null;
+      });
   }
   return refreshInFlight;
 }
@@ -161,16 +187,21 @@ export async function restoreSession(): Promise<WorkspaceUser> {
 
 export async function signIn(email: string, password: string): Promise<WorkspaceUser> {
   const payload = await request<TokenResponse>("/auth/login", {
-    method: "POST", body: JSON.stringify({ email, password }),
+    method: "POST",
+    body: JSON.stringify({ email, password }),
   });
   return acceptToken(payload);
 }
 
 export async function updatePassword(currentPassword: string, newPassword: string): Promise<string> {
-  const payload = await request<MessageResponse>("/auth/change-password", {
-    method: "POST",
-    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
-  }, true);
+  const payload = await request<MessageResponse>(
+    "/auth/change-password",
+    {
+      method: "POST",
+      body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+    },
+    true,
+  );
   return payload.message;
 }
 
@@ -192,15 +223,25 @@ export async function createUser(newUser: NewUser): Promise<WorkspaceUser> {
 }
 
 export async function setUserActive(userId: string, isActive: boolean): Promise<WorkspaceUser> {
-  return request<WorkspaceUser>(`/users/${userId}/status`, {
-    method: "PATCH", body: JSON.stringify({ is_active: isActive }),
-  }, true);
+  return request<WorkspaceUser>(
+    `/users/${userId}/status`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ is_active: isActive }),
+    },
+    true,
+  );
 }
 
 export async function setUserRole(userId: string, role: WorkspaceUser["role"]): Promise<WorkspaceUser> {
-  return request<WorkspaceUser>(`/users/${userId}/role`, {
-    method: "PATCH", body: JSON.stringify({ role }),
-  }, true);
+  return request<WorkspaceUser>(
+    `/users/${userId}/role`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ role }),
+    },
+    true,
+  );
 }
 
 export async function listProjects(offset: number, limit: number, search: string): Promise<ProjectPage> {
@@ -213,7 +254,8 @@ export async function listAllUsers(): Promise<WorkspaceUser[]> {
   const firstPage = await listUsers(0, 100, "");
   const pages = await Promise.all(
     Array.from({ length: Math.ceil((firstPage.total - firstPage.items.length) / 100) }, (_, index) =>
-      listUsers((index + 1) * 100, 100, "")),
+      listUsers((index + 1) * 100, 100, ""),
+    ),
   );
   return [...firstPage.items, ...pages.flatMap((page) => page.items)];
 }
@@ -241,9 +283,14 @@ export async function replaceProjectMembers(
   managerIds: string[],
   memberIds: string[],
 ): Promise<ProjectMembership> {
-  return request<ProjectMembership>(`/projects/${projectId}/members`, {
-    method: "PUT", body: JSON.stringify({ manager_ids: managerIds, member_ids: memberIds }),
-  }, true);
+  return request<ProjectMembership>(
+    `/projects/${projectId}/members`,
+    {
+      method: "PUT",
+      body: JSON.stringify({ manager_ids: managerIds, member_ids: memberIds }),
+    },
+    true,
+  );
 }
 
 export async function listProjectTasks(projectId: string, offset = 0, limit = 100): Promise<TaskPage> {
@@ -272,8 +319,16 @@ export async function submitTaskForReview(taskId: string): Promise<WorkspaceTask
   return request<WorkspaceTask>(`/tasks/${taskId}/submit-review`, { method: "POST" }, true);
 }
 
-export async function reviewTask(taskId: string, decision: "APPROVED" | "CHANGES_REQUIRED", feedback: string | null): Promise<void> {
+export async function reviewTask(
+  taskId: string,
+  decision: "APPROVED" | "CHANGES_REQUIRED",
+  feedback: string | null,
+): Promise<void> {
   await request(`/tasks/${taskId}/review`, { method: "POST", body: JSON.stringify({ decision, feedback }) }, true);
+}
+
+export async function listTaskReviews(taskId: string): Promise<TaskReview[]> {
+  return request<TaskReview[]>(`/tasks/${taskId}/reviews`, { method: "GET" }, true);
 }
 
 export async function signOut(): Promise<void> {

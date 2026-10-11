@@ -1,0 +1,32 @@
+{
+  "name": "invictus-grid-workspace",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Root task runner for the Invictus Grid Workspace monorepo.",
+  "scripts": {
+    "setup": "npm run backend:install && npm run frontend:install",
+    "db:up": "docker run -d --name igw-postgres -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=invictus_grid -p 5432:5432 -v igw-pgdata:/var/lib/postgresql/data --restart unless-stopped postgres:16",
+    "db:down": "docker stop igw-postgres && docker rm igw-postgres",
+    "db:psql": "docker exec -it igw-postgres psql -U postgres -d invictus_grid",
+    "backend:install": "node scripts/py.mjs -m pip install -r requirements.txt",
+    "backend:install-dev": "node scripts/py.mjs -m pip install -r requirements-dev.txt",
+    "backend:migrate": "node scripts/py.mjs -m alembic upgrade head",
+    "backend:migrate:down": "node scripts/py.mjs -m alembic downgrade -1",
+    "backend:bootstrap": "node scripts/py.mjs -m app.bootstrap_admin",
+    "backend:dev": "node scripts/py.mjs -m uvicorn app.main:app --reload",
+    "backend:lint": "node scripts/py.mjs -m ruff check .",
+    "backend:format": "node scripts/py.mjs -m ruff format .",
+    "backend:format:check": "node scripts/py.mjs -m ruff format --check .",
+    "frontend:install": "npm --prefix frontend install",
+    "frontend:dev": "npm --prefix frontend run dev",
+    "frontend:build": "npm --prefix frontend run build",
+    "frontend:typecheck": "npm --prefix frontend run typecheck",
+    "frontend:lint": "npm --prefix frontend run lint",
+    "frontend:format": "npm --prefix frontend run format",
+    "frontend:format:check": "npm --prefix frontend run format:check",
+    "lint": "npm run backend:lint && npm run frontend:lint",
+    "typecheck": "npm --prefix frontend run typecheck",
+    "format": "npm run backend:format && npm run frontend:format",
+    "format:check": "npm run backend:format:check && npm run frontend:format:check"
+  }
+}

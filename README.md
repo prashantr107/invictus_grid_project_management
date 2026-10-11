@@ -40,6 +40,23 @@ npm run dev
 
 The frontend reads its backend base URL from `VITE_API_BASE_URL` (defaults to `http://localhost:8000/api/v1`).
 
+### Tooling & quality
+
+From the repository root, `npm run <task>` drives every common command:
+
+| Task | What it runs |
+|---|---|
+| `npm run setup` | install backend (`requirements.txt`) + frontend deps |
+| `npm run db:up` / `db:down` | start / stop the local Postgres container (`igw-postgres`) |
+| `npm run backend:dev` / `frontend:dev` | uvicorn with reload / Vite dev server |
+| `npm run backend:migrate` | `alembic upgrade head` |
+| `npm run backend:install-dev` | install dev deps (ruff, pre-commit) into `backend/.venv` |
+| `npm run lint` | `ruff check` (backend) + `eslint` (frontend) |
+| `npm run typecheck` | `tsc --noEmit` (frontend) |
+| `npm run format` / `format:check` | `ruff format` + `prettier --write`, or the check-only variants |
+
+Backend dependency versions are pinned in `backend/requirements.lock` (generated from `pip freeze` of a known-good venv); `requirements.txt` stays the loose, human-edited input. Pre-commit hooks run the lint/format checks before each commit — set them up once with `backend\.venv\Scripts\pre-commit.exe install`.
+
 ## Current scope
 
 Implemented slices include authentication, Admin account provisioning and management, project creation and membership management, project-scoped task creation and assignment, task status and review workflows, database migrations, and the health endpoint. Admins can search and paginate the People and Projects directories, create accounts and projects, change user roles, manage project assignments, activate or deactivate accounts, and manage tasks. Managers see their assigned projects, create and assign project tasks, and review submissions. Members see only their assigned tasks, start or resume work, and submit tasks for review.

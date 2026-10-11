@@ -168,7 +168,9 @@ def get_project_members(
     if actor.role != Role.ADMIN.value:
         membership = db.get(ProjectMember, (project_id, actor.id))
         if actor.role != Role.MANAGER.value or membership is None or membership.role != Role.MANAGER.value:
-            raise HTTPException(status_code=403, detail="Only Admins and assigned project Managers can view project membership")
+            raise HTTPException(
+                status_code=403, detail="Only Admins and assigned project Managers can view project membership"
+            )
     rows = db.execute(
         select(ProjectMember, User)
         .join(User, User.id == ProjectMember.user_id)

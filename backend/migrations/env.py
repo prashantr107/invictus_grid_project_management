@@ -4,14 +4,15 @@ import os
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-from app.core.config import get_settings
 from app.db.session import Base
 from app import models  # noqa: F401
 
 config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
-config.set_main_option("sqlalchemy.url", os.getenv("DATABASE_URL", get_settings().database_url))
+config.set_main_option(
+    "sqlalchemy.url", os.getenv("DATABASE_URL", "postgresql+psycopg://postgres:postgres@localhost:5432/invictus_grid")
+)
 target_metadata = Base.metadata
 
 

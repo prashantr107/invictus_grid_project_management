@@ -2,7 +2,19 @@ from datetime import date, datetime, timezone
 from enum import Enum
 from uuid import UUID, uuid4
 
-from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, Integer, JSON, String, Text, UniqueConstraint, Uuid
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    Date,
+    DateTime,
+    ForeignKey,
+    Integer,
+    JSON,
+    String,
+    Text,
+    UniqueConstraint,
+    Uuid,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.session import Base
@@ -37,7 +49,9 @@ class User(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     must_change_password: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
 
 
 class AuthSession(Base):
@@ -77,14 +91,14 @@ class Project(Base):
     due_date: Mapped[date | None] = mapped_column(Date)
     created_by: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"), index=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
 
 
 class ProjectMember(Base):
     __tablename__ = "project_members"
-    __table_args__ = (
-        CheckConstraint("role IN ('MANAGER', 'MEMBER')", name="ck_project_members_role"),
-    )
+    __table_args__ = (CheckConstraint("role IN ('MANAGER', 'MEMBER')", name="ck_project_members_role"),)
 
     project_id: Mapped[UUID] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), primary_key=True)
     user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"), primary_key=True, index=True)
@@ -121,7 +135,10 @@ class Task(Base):
         UniqueConstraint("project_id", "issue_key", name="uq_tasks_project_key"),
         CheckConstraint("type IN ('TASK', 'FEATURE', 'BUG')", name="ck_tasks_type"),
         CheckConstraint("priority IN ('LOW', 'MEDIUM', 'HIGH', 'URGENT')", name="ck_tasks_priority"),
-        CheckConstraint("status IN ('TODO', 'IN_PROGRESS', 'PENDING_REVIEW', 'CHANGES_REQUIRED', 'COMPLETED')", name="ck_tasks_status"),
+        CheckConstraint(
+            "status IN ('TODO', 'IN_PROGRESS', 'PENDING_REVIEW', 'CHANGES_REQUIRED', 'COMPLETED')",
+            name="ck_tasks_status",
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
@@ -138,14 +155,14 @@ class Task(Base):
     due_date: Mapped[date | None] = mapped_column(Date)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
 
 
 class TaskReview(Base):
     __tablename__ = "task_reviews"
-    __table_args__ = (
-        CheckConstraint("decision IN ('APPROVED', 'CHANGES_REQUIRED')", name="ck_task_reviews_decision"),
-    )
+    __table_args__ = (CheckConstraint("decision IN ('APPROVED', 'CHANGES_REQUIRED')", name="ck_task_reviews_decision"),)
 
     id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
     task_id: Mapped[UUID] = mapped_column(ForeignKey("tasks.id", ondelete="CASCADE"), index=True, nullable=False)

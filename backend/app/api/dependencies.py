@@ -16,7 +16,9 @@ def get_authenticated_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
     db: Session = Depends(get_db),
 ) -> User:
-    unauthorized = HTTPException(status_code=401, detail="Authentication required", headers={"WWW-Authenticate": "Bearer"})
+    unauthorized = HTTPException(
+        status_code=401, detail="Authentication required", headers={"WWW-Authenticate": "Bearer"}
+    )
     if credentials is None:
         raise unauthorized
     try:

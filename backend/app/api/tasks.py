@@ -16,7 +16,6 @@ from app.models import (
     TaskPriority,
     TaskReview,
     TaskStatus,
-    TaskType,
     User,
     utc_now,
 )
@@ -81,7 +80,13 @@ def validate_assignee(db: Session, project_id: UUID, assignee_id: UUID | None) -
         return None
     user = db.get(User, assignee_id)
     membership = db.get(ProjectMember, (project_id, assignee_id))
-    if user is None or not user.is_active or user.role != Role.MEMBER.value or membership is None or membership.role != Role.MEMBER.value:
+    if (
+        user is None
+        or not user.is_active
+        or user.role != Role.MEMBER.value
+        or membership is None
+        or membership.role != Role.MEMBER.value
+    ):
         raise HTTPException(status_code=422, detail="Assignee must be an active Member of this project")
     return user
 
@@ -161,8 +166,12 @@ def list_project_tasks(
     tasks = list(db.scalars(statement.order_by(Task.created_at.desc()).offset(offset).limit(limit)).all())
     total = db.scalar(count_statement) or 0
     assignee_ids = {task.assignee_id for task in tasks if task.assignee_id is not None}
-    names = dict(db.execute(select(User.id, User.full_name).where(User.id.in_(assignee_ids))).all()) if assignee_ids else {}
-    return TaskPage(items=[task_read(task, names.get(task.assignee_id)) for task in tasks], total=total, offset=offset, limit=limit)
+    names = (
+        dict(db.execute(select(User.id, User.full_name).where(User.id.in_(assignee_ids))).all()) if assignee_ids else {}
+    )
+    return TaskPage(
+        items=[task_read(task, names.get(task.assignee_id)) for task in tasks], total=total, offset=offset, limit=limit
+    )
 
 
 @router.get("/tasks/{task_id}", response_model=TaskRead)
@@ -170,6 +179,34 @@ def get_task(task_id: UUID, db: Session = Depends(get_db), actor: User = Depends
     task, _ = task_for_user(db, task_id, actor)
     assignee_name = db.scalar(select(User.full_name).where(User.id == task.assignee_id)) if task.assignee_id else None
     return task_read(task, assignee_name)
+
+
+@router.get("/tasks/{task_id}/reviews", response_model=list[TaskReviewRead])
+def list_task_reviews(
+    task_id: UUID,
+    db: Session = Depends(get_db),
+    actor: User = Depends(get_current_user),
+) -> list[TaskReviewRead]:
+    task, _ = task_for_user(db, task_id, actor)
+    reviews = list(
+        db.scalars(select(TaskReview).where(TaskReview.task_id == task.id).order_by(TaskReview.created_at.desc())).all()
+    )
+    reviewer_ids = {review.reviewer_id for review in reviews}
+    names = (
+        dict(db.execute(select(User.id, User.full_name).where(User.id.in_(reviewer_ids))).all()) if reviewer_ids else {}
+    )
+    return [
+        TaskReviewRead(
+            id=review.id,
+            task_id=review.task_id,
+            reviewer_id=review.reviewer_id,
+            reviewer_name=names.get(review.reviewer_id),
+            decision=review.decision,
+            feedback=review.feedback,
+            created_at=review.created_at,
+        )
+        for review in reviews
+    ]
 
 
 @router.patch("/tasks/{task_id}", response_model=TaskRead)
@@ -187,13 +224,30 @@ def update_task(
     old_assignee = task.assignee_id
     if "assignee_id" in changes:
         validate_assignee(db, task.project_id, changes["assignee_id"])
-    before = {key: str(getattr(task, key)) if getattr(task, key) is not None else None for key in changes}
     for key, value in changes.items():
         setattr(task, key, value.value if hasattr(value, "value") else value)
     activity(db, task, actor, "task.updated", {"fields": list(changes.keys())})
     if old_assignee != task.assignee_id:
-        activity(db, task, actor, "task.reassigned", {"from": str(old_assignee) if old_assignee else None, "to": str(task.assignee_id) if task.assignee_id else None})
-        audit(db, task, actor, "task.reassigned", {"from": str(old_assignee) if old_assignee else None, "to": str(task.assignee_id) if task.assignee_id else None})
+        activity(
+            db,
+            task,
+            actor,
+            "task.reassigned",
+            {
+                "from": str(old_assignee) if old_assignee else None,
+                "to": str(task.assignee_id) if task.assignee_id else None,
+            },
+        )
+        audit(
+            db,
+            task,
+            actor,
+            "task.reassigned",
+            {
+                "from": str(old_assignee) if old_assignee else None,
+                "to": str(task.assignee_id) if task.assignee_id else None,
+            },
+        )
     db.commit()
     db.refresh(task)
     assignee_name = db.scalar(select(User.full_name).where(User.id == task.assignee_id)) if task.assignee_id else None
@@ -210,8 +264,13 @@ def update_task_status(
     task, _ = task_for_user(db, task_id, actor)
     if actor.role != Role.MEMBER.value or task.assignee_id != actor.id:
         raise HTTPException(status_code=403, detail="Only the assigned Member can start or resume this task")
-    if payload.status != TaskStatus.IN_PROGRESS or task.status not in (TaskStatus.TODO.value, TaskStatus.CHANGES_REQUIRED.value):
-        raise HTTPException(status_code=409, detail=f"Cannot transition task from {task.status} to {payload.status.value}")
+    if payload.status != TaskStatus.IN_PROGRESS or task.status not in (
+        TaskStatus.TODO.value,
+        TaskStatus.CHANGES_REQUIRED.value,
+    ):
+        raise HTTPException(
+            status_code=409, detail=f"Cannot transition task from {task.status} to {payload.status.value}"
+        )
     previous = task.status
     task.status = TaskStatus.IN_PROGRESS.value
     task.completed_at = None

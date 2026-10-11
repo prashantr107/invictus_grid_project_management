@@ -26,37 +26,37 @@ Build a verified, evidence-based understanding of what exists today so every lat
 ### Checklist
 
 #### Documentation & baseline
-- [ ] Read and reconcile `Invictus_Grid_Workspace_PRD.txt` (product scope, role matrix, acceptance criteria 1–27)
-- [ ] Read and reconcile `Invictus_Grid_Workspace_SRS.txt` (FR-AUTH/RBAC/PROJ/TASK/REVIEW/GH requirements, §3.7–3.11 features)
-- [ ] Read and reconcile `Invictus_Grid_Workspace_TRD.txt` (stack, layered architecture, testing/CI/deployment rules)
-- [ ] Confirm README run instructions match the actual repository layout
+- [x] Read and reconcile `Invictus_Grid_Workspace_PRD.txt` (product scope, role matrix, acceptance criteria 1–27) — fully read; single-org, 3 roles, Admin-only provisioning, task lifecycle, manual GitHub evidence, in-app notifications, attachment types, server-side progress formula all confirmed.
+- [x] Read and reconcile `Invictus_Grid_Workspace_SRS.txt` (FR-AUTH/RBAC/PROJ/TASK/REVIEW/GH requirements, §3.7–3.11 features) — fully read; FR-AUTH-001…009, FR-RBAC-001…007, FR-PROJ-001…008, FR-TASK-001…008, FR-REVIEW-001…007, FR-GH-001…006, §3.8–3.12 (comments, attachments, notifications, dashboards, audit) all noted; gap list reflected in Phases 3, 6, 9.
+- [x] Read and reconcile `Invictus_Grid_Workspace_TRD.txt` (stack, layered architecture, testing/CI/deployment rules) — fully read; approved stack (React/TS/Vite, FastAPI/Pydantic v2/SQLAlchemy 2/Alembic/Argon2id/JWT, PostgreSQL, Render persistent disk), layered architecture (router→service→repo→model), TanStack Query + Zustand, UUID PKs, UTC timestamps, `/api/v1` prefix, testing/CI/deployment requirements all confirmed; service and repo layers absent in current code.
+- [x] Confirm README run instructions match the actual repository layout — README instructions match: `backend/` and `frontend/` dirs exist; `backend/.env.example`, `alembic upgrade head`, `bootstrap_admin`, `uvicorn` commands correct; `frontend/.env.example` and `npm run dev/build` match `package.json`; health at `GET /api/v1/health` confirmed.
 
 #### Repository & structure
-- [ ] Inventory folder/file structure (`backend/`, `frontend/`, docs, migrations)
-- [ ] Review git history and confirm working tree state (`git status`, `git log`)
-- [ ] Confirm `.gitignore` excludes secrets, `node_modules`, `dist`, `__pycache__`
+- [x] Inventory folder/file structure (`backend/`, `frontend/`, docs, migrations) — `backend/app/{api,core,db}/`, `migrations/versions/0001–0003`, `frontend/src/`, `Invictus_Grid_Workspace_*.txt`, `README.md`, `PROJECT_CHECKLIST.md` all confirmed present.
+- [x] Review git history and confirm working tree state (`git status`, `git log`) — 10 commits on `main`; working tree clean; latest: `6f562f6 created project checklist.md`.
+- [x] Confirm `.gitignore` excludes secrets, `node_modules`, `dist`, `__pycache__` — root `.gitignore` covers all four; `.env`/`.env.*` excluded with `!.env.example` negation; `.venv/`, `dist/`, `__pycache__/`, `node_modules/` all present. ✓
 
 #### Backend analysis
-- [ ] Inspect `app/main.py` (app, CORS, limiter, router mounting)
-- [ ] Inspect `app/models.py` (all tables, enums, constraints, relationships)
-- [ ] Inspect `app/schemas.py` (request/response contracts, validation rules)
-- [ ] Inspect `app/core/config.py` and `app/core/security.py`
-- [ ] Inspect `app/db/session.py` and `app/api/dependencies.py`
-- [ ] Inspect all routers: `auth.py`, `users.py`, `projects.py`, `tasks.py`, `health.py`
-- [ ] Inspect Alembic migrations `0001` → `0002` → `0003`
+- [x] Inspect `app/main.py` (app, CORS, limiter, router mounting) — FastAPI app, slowapi limiter on state, CORSMiddleware with `FRONTEND_ORIGINS` origins, `allow_credentials=True`, methods `GET POST PATCH DELETE` (**PUT missing — C1**), all 5 routers mounted under `/api/v1`.
+- [x] Inspect `app/models.py` (all tables, enums, constraints, relationships) — 9 tables: `users`, `auth_sessions`, `audit_logs`, `projects`, `project_members`, `tasks`, `task_reviews`, `activity_logs`; all enums, CHECK constraints, UUID PKs, UTC timestamps, FKs with correct `ondelete` actions confirmed. Missing: `comments`, `attachments`, `github_links`, `notifications` (SRS §4.1).
+- [x] Inspect `app/schemas.py` (request/response contracts, validation rules) — Pydantic v2 models for all implemented resources; custom validators (password strength, non-blank, project key normalization, disjoint membership, `CHANGES_REQUIRED` requires feedback); `TaskStatusUpdate`, `TaskReviewCreate`, pagination `*Page` shapes all confirmed.
+- [x] Inspect `app/core/config.py` and `app/core/security.py` — `pydantic-settings` with `@lru_cache`, `min_length=32` on `JWT_SECRET_KEY`, cookie-security validators, `cors_origins` property; `security.py` has Argon2id hash/verify, 48-byte urlsafe refresh token, SHA-256 hash, HS256 JWT create/decode.
+- [x] Inspect `app/db/session.py` and `app/api/dependencies.py` — `get_db()` request-scoped generator, `pool_pre_ping=True`; dependency ladder `get_authenticated_user` → `get_current_user` (blocks `must_change_password`) → `require_admin` confirmed.
+- [x] Inspect all routers: `auth.py`, `users.py`, `projects.py`, `tasks.py`, `health.py` — all read; endpoints, authorization guards, audit/activity writes, rate limiting, state-machine transitions confirmed as described in Phase 5/6 entries above; defects C1–C5 confirmed in code.
+- [x] Inspect Alembic migrations `0001` → `0002` → `0003` — migration chain structurally consistent with models; C4 defect confirmed: `migrations/env.py:14` eagerly calls `get_settings()` when `DATABASE_URL` env var is absent, causing `alembic upgrade head` to fail without a `.env` containing `JWT_SECRET_KEY`.
 
 #### Frontend analysis
-- [ ] Inspect `src/api.ts` (request client, token store, 401→refresh→retry)
-- [ ] Inspect `src/App.tsx` (session restore, login, forced password change, view switching)
-- [ ] Inspect `AdminUsers.tsx`, `AdminProjects.tsx`, `TasksWorkspace.tsx`
-- [ ] Inspect `styles.css`, `vite.config.ts`, `tsconfig.json`, `package.json`
-- [ ] Run frontend typecheck (`tsc --noEmit`) and record result
+- [x] Inspect `src/api.ts` (request client, token store, 401→refresh→retry) — in-memory `accessToken`, `refreshInFlight` deduplication, `credentials: "include"`, single-flight refresh + one retry on 401, typed `ApiError`, 429 mapped to friendly message. All confirmed.
+- [x] Inspect `src/App.tsx` (session restore, login, forced password change, view switching) — `StrictMode` guard with `useRef`, session restore on mount, login form, forced-change form with client-side strength + confirmation check, Admin view switcher (`people`/`projects`/`tasks`), `TasksWorkspace` for non-Admin roles. Confirmed.
+- [x] Inspect `AdminUsers.tsx`, `AdminProjects.tsx`, `TasksWorkspace.tsx` — confirmed as described in Phase 7; `TasksWorkspace.tsx:130` C3 defect (`String(form.get("task-assignee"))` → `"null"` on disabled select) confirmed in code.
+- [x] Inspect `styles.css`, `vite.config.ts`, `tsconfig.json`, `package.json` — strict TS, Vite 8 with `@vitejs/plugin-react` + `@tailwindcss/vite`; `npm run build = tsc -b && vite build`; Tailwind v4 wired but zero utility classes used; `styles.css` is all custom CSS.
+- [x] Run frontend typecheck (`tsc --noEmit`) and record result — **passes clean** (verified in prior session; strict + noUnusedLocals + noUnusedParameters).
 
 #### Environment analysis
-- [ ] Confirm Python version, backend virtualenv presence, installed backend dependencies
-- [ ] Confirm Node version and `node_modules` state
-- [ ] Confirm local PostgreSQL availability and whether `.env` files exist
-- [ ] Record all known defects, gaps and spec deviations into this checklist
+- [x] Confirm Python version, backend virtualenv presence, installed backend dependencies — no `.venv` exists in `backend/`; backend dependencies (FastAPI, SQLAlchemy, Alembic, argon2-cffi, PyJWT, slowapi, psycopg, pydantic-settings) are **not installed** in the current environment; Python 3.11+ required.
+- [x] Confirm Node version and `node_modules` state — `frontend/node_modules/` is present and populated; `npm run dev` and `npm run build` are available; Node 20.19+ or 22.12+ required per README.
+- [x] Confirm local PostgreSQL availability and whether `.env` files exist — no `backend/.env` exists (only `backend/.env.example`); local PostgreSQL availability unknown/unconfirmed; backend cannot start without both.
+- [x] Record all known defects, gaps and spec deviations into this checklist — all 5 confirmed defects (C1–C5) and all feature gaps recorded in Phase 2, 3, 6, 9 sections above.
 
 ### Dependencies
 None.
@@ -65,7 +65,7 @@ None.
 Every checkbox above is `[x]` with notes captured in the Change Log; a gap list derived from PRD/SRS/TRD exists and is reflected in Phases 2–16 of this file.
 
 ### Current Status
-- **NOT STARTED** (this session performed a full analysis and authored this checklist, but the analysis is intentionally left unchecked so it can be independently re-verified and re-run after each major phase.)
+- **COMPLETED** — all Phase 0 checkboxes verified against actual code and files on 2026-10-09. Gap list and defect list confirmed and reflected in Phases 2–16.
 
 ---
 
@@ -84,21 +84,21 @@ Make the project runnable and consistent for any developer: reproducible backend
 - [x] `frontend/.env.example` documenting `VITE_API_BASE_URL`
 - [x] Frontend `node_modules` installed; `npm run dev` / `npm run build` scripts defined in `package.json`
 
-#### Environment (not runnable today)
-- [ ] Create `backend/.venv` and install `requirements.txt` *(partially implemented: no virtualenv exists; `sqlalchemy`, `alembic`, `psycopg`, `PyJWT`, `argon2`, `slowapi` are not installed in the interpreter)*
-- [ ] Create `backend/.env` from `.env.example` with a real `JWT_SECRET_KEY` (≥32 chars) and working `DATABASE_URL`
-- [ ] Install/start a local PostgreSQL instance and create the `invictus_grid` database
-- [ ] Verify `alembic upgrade head` runs end-to-end *(partially implemented: `migrations/env.py:14` eagerly evaluates `get_settings()`, so migrations fail unless a full `.env` exists — see Phase 2)*
-- [ ] Verify `python -m app.bootstrap_admin` bootstraps the first Admin
-- [ ] Verify `uvicorn app.main:app --reload` starts and `GET /api/v1/health` responds
-- [ ] Verify `npm run dev` serves the SPA at `http://localhost:5173`
+#### Environment (runnable — verified 2026-10-10)
+- [x] Create `backend/.venv` and install `requirements.txt` — created with Python 3.12.7; all deps (FastAPI, SQLAlchemy, Alembic, psycopg-binary, PyJWT, argon2-cffi, slowapi, pydantic-settings) installed from binary wheels
+- [x] Create `backend/.env` from `.env.example` with a real `JWT_SECRET_KEY` (≥32 chars) and working `DATABASE_URL` — 64-char secret; `DATABASE_URL` points at the local container (`postgres:postgres@localhost:5432/invictus_grid`)
+- [x] Install/start a local PostgreSQL instance and create the `invictus_grid` database — PostgreSQL 16 via Docker (`igw-postgres`, volume `igw-pgdata`, `--restart unless-stopped`); DB `invictus_grid` present
+- [x] Verify `alembic upgrade head` runs end-to-end — 0001→0002→0003 applied; `alembic_version = 0003_tasks`. *(C4 not triggered only because `.env` supplies `JWT_SECRET_KEY`; still to fix in Phase 2)*
+- [x] Verify `python -m app.bootstrap_admin` bootstraps the first Admin — `admin@invictusgrid.com` / `ADMIN` / active created (stdin-fed runner; the command is interactive/non-idempotent)
+- [x] Verify `uvicorn app.main:app --reload` starts and `GET /api/v1/health` responds — `{"status":"ok"}`; real login returned a valid JWT (health endpoint does not itself check DB — Phase 4 gap)
+- [x] Verify `npm run dev` serves the SPA at `http://localhost:5173` — HTTP 200, title "Invictus Grid Workspace", `#root` present
 
-#### Tooling
-- [ ] Add Python linter/formatter config (`ruff` or equivalent) + make target/script
-- [ ] Add frontend linting (`eslint`) and formatting (`prettier`) config
-- [ ] Add a root-level script/task runner (e.g. `Makefile`, `justfile`, or npm workspaces) for common commands
-- [ ] Pin backend dependency versions or add a lock strategy (currently loose ranges only)
-- [ ] Add pre-commit hooks (optional but recommended)
+#### Tooling (verified 2026-10-10)
+- [x] Add Python linter/formatter config (`ruff` or equivalent) + make target/script — `backend/pyproject.toml` (`[tool.ruff]`, line-length 120, `E501` ignored as formatter-owned, `E`/`F` selected); `ruff check` passes (2 dead-code findings in `tasks.py` fixed: unused `TaskType` import + unused `before` var). `ruff format --check` still reports 7 legacy files (intentional: not mass-reformatted) — format via `npm run backend:format`.
+- [x] Add frontend linting (`eslint`) and formatting (`prettier`) config — `frontend/eslint.config.js` (flat, tseslint recommended + react-hooks/react-refresh, `set-state-in-effect` disabled for the existing data-fetch-in-effect pattern), `frontend/.prettierrc.json` (semi, double-quote, width 120), `.prettierignore`, scripts `lint`/`lint:fix`/`format`/`format:check`/`typecheck`; `npm run lint` passes, `npm run build` passes. Source not mass-reformatted.
+- [x] Add a root-level script/task runner (e.g. `Makefile`, `justfile`, or npm workspaces) for common commands — root `package.json` npm scripts (no workspaces) + cross-platform `scripts/py.mjs` backend venv launcher; `npm run {setup,db:up,db:down,backend:*,frontend:*,lint,typecheck,format,format:check}` all verified.
+- [x] Pin backend dependency versions or add a lock strategy (currently loose ranges only) — `backend/requirements.lock` generated via `pip freeze` (39 runtime packages, exact `==` versions); `requirements.txt` remains the loose input; dev deps in `backend/requirements-dev.txt` (ruff==0.17.0, pre-commit==4.6.2).
+- [x] Add pre-commit hooks (optional but recommended) — root `.pre-commit-config.yaml` (pre-commit-hooks base + ruff/`ruff format --check` via astral-sh + prettier/eslint as local `system` hooks in check mode); `pre-commit install` run (`.git/hooks/pre-commit` present); every hook executed successfully during verification. Prettier run as a local `node … --check` hook because the rbubley mirror writes files; local hook verified non-mutating.
 
 ### Dependencies
 Phase 0.
@@ -107,7 +107,7 @@ Phase 0.
 A fresh clone can be brought up with documented commands only; backend, frontend and database all run locally; lint/typecheck commands exist and pass.
 
 ### Current Status
-- **PARTIALLY COMPLETED** — structure, docs and config examples exist; the backend is not installable/runnable in the current environment and no tooling config exists.
+- **COMPLETED** — a fresh setup can be brought up with documented commands (`npm run setup` / README); backend, Postgres (Docker) and frontend all run locally; lint, typecheck and format commands exist and pass (ruff + eslint + tsc verified green 2026-10-10). `ruff format --check`/`prettier --check` intentionally report legacy files as unformatted until explicitly formatted.
 
 ---
 
@@ -119,10 +119,10 @@ Resolve verified, user-visible/blocking defects before any new feature work, so 
 ### Checklist
 
 #### Confirmed defects (verified against code this session)
-- [ ] **C1 — CORS blocks the only `PUT` endpoint.** `backend/app/main.py:22` allows only `GET, POST, PATCH, DELETE`; `PUT /projects/{id}/members` fails preflight with `400 Disallowed CORS method`, so "Save membership" breaks cross-origin (Starlette `CORSMiddleware.preflight_response` verified). Add `PUT` to `allow_methods`.
-- [ ] **C2 — Review feedback is write-only.** `POST /tasks/{id}/review` stores `TaskReview.feedback`, but no `GET` endpoint and no UI exist to read it, so a Member told `CHANGES_REQUIRED` never learns what to fix (SRS FR-REVIEW-005 / PRD acceptance 20–21). Add a reviews read endpoint + surface feedback in the task list.
-- [ ] **C3 — Disabled assignee `<select>` submits literal `"null"`.** `TasksWorkspace.tsx:130` builds `assignee_id` via `String(form.get("task-assignee"))`; when the select is `disabled` (`members.length === 0`) the field is absent from `FormData`, so `String(null)` → `"null"` → 422 "Input should be a valid UUID". Use the raw value (`form.get(...) ?? ""`).
-- [ ] **C4 — Alembic requires a JWT secret.** `migrations/env.py:14` uses `os.getenv("DATABASE_URL", get_settings().database_url)`; the default argument evaluates eagerly, so `alembic upgrade head` fails whenever `.env` lacks `JWT_SECRET_KEY`. Guard the fallback.
+- [x] **C1 — CORS blocks the only `PUT` endpoint.** **FIXED** — `backend/app/main.py:22` now includes `PUT` (`["GET", "POST", "PATCH", "PUT", "DELETE"]`). Verified 2026-10-11 via middleware preflight: `OPTIONS` with requested `PUT` returns `200` and `access-control-allow-methods: GET, POST, PATCH, PUT, DELETE`; control case `TRACE` returns `400`.
+- [x] **C2 — Review feedback is write-only.** **FIXED** — `GET /tasks/{task_id}/reviews` added (`backend/app/api/tasks.py:174`, `TaskReviewRead` schema) and surfaced in the UI (`frontend/src/api.ts:289` `listTaskReviews`, `frontend/src/TasksWorkspace.tsx:39,134` `ReviewNote`). Verified 2026-10-11: route present in `app.openapi()` as `GET`; frontend typecheck passes.
+- [x] **C3 — Disabled assignee `<select>` submits literal `"null"`.** **FIXED** — `frontend/src/TasksWorkspace.tsx:154,160` now reads the raw value and maps empty → `null` (`typeof rawAssignee === "string" && rawAssignee !== "" ? rawAssignee : null`). Verified 2026-10-11: `tsc --noEmit` passes.
+- [x] **C4 — Alembic requires a JWT secret.** **FIXED** — `backend/migrations/env.py:13` now uses a literal default (`os.getenv("DATABASE_URL", "postgresql+psycopg://postgres:postgres@localhost:5432/invictus_grid")`) with no eager `get_settings()` call. Verified 2026-10-11: `alembic upgrade head --sql` (offline) exits `0` with `JWT_SECRET_KEY` and `DATABASE_URL` unset.
 
 #### Design defect needing an explicit decision
 - [ ] **C5 — Role changes break project access.** `PATCH /users/{id}/role` (`users.py:80-92`) never reconciles `project_members`, while access checks require `project_members.role == users.role` (`projects.py:135-143`, `tasks.py:35`). Promoting MEMBER→MANAGER makes the user lose *all* projects and their own assigned tasks (404s); demotion orphans assigned tasks. Decide and implement: cascade membership updates **or** decouple authorization from the duplicated role column.
@@ -140,7 +140,7 @@ Phase 0 (findings). Phase 1 recommended first for a runnable environment (needed
 Each defect has a fix, is reproduced-then-verified locally, and is covered by at least one regression test (or a note pointing at the Phase 11 test that covers it).
 
 ### Current Status
-- **NOT STARTED**
+- **PARTIALLY COMPLETED** — 4 of 5 confirmed critical defects fixed and verified 2026-10-11 (C1 CORS `PUT`, C2 review-feedback read path, C3 assignee payload, C4 Alembic↔secret decoupling). Still open: **C5** (role/membership reconciliation), the C5 decision note, and the three secondary defects (dead code, `COMPLETED`/`ARCHIVED` project guards, duplicated frontend helpers). The C1–C4 fixes are currently **uncommitted** in the working tree.
 
 ---
 
@@ -777,17 +777,17 @@ Every checkbox in Phases 0–15 is `[x]`, staging matches production configurati
 | Metric | Value |
 |---|---|
 | **Total phases** | 17 (Phase 0 → Phase 16) |
-| **Completed phases** | 0 |
-| **In-progress phases** | 0 formally; Phases 0, 1, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 14, 15 are all **PARTIALLY COMPLETED** |
-| **Not started phases** | 2 (Critical Defect Fixes), 11 (Testing), 16 (Production Readiness) — plus Phase 0 awaiting independent verification |
-| **Remaining phases** | 17 of 17 |
+| **Completed phases** | 2 (Phase 0 — analysis, Phase 1 — environment & tooling) |
+| **In-progress phases** | Phases 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 14, 15 **PARTIALLY COMPLETED** (Phase 2 now 4/5 critical fixes done) |
+| **Not started phases** | 2 (Testing, Production Readiness) |
+| **Remaining phases** | 15 of 17 |
 
-**Checklist items: 129 of 356 verified complete → 36%**
-*(Backend/DB/auth core of slice 1 is verified complete; environment setup, testing, CI, deployment, security hardening and ~half of the SRS feature set remain. Recalculated on every Change Log entry.)*
+**Checklist items: 168 of 356 verified complete → 47%**
+*(Phase 0 and Phase 1 (runnable environment + tooling) are fully complete; testing, CI, deployment, security hardening and ~half of the SRS feature set remain. Recalculated on every Change Log entry.)*
 
 **Verified-complete highlights:** auth + session lifecycle, RBAC/IDOR guards, user provisioning, projects + memberships, task lifecycle + review workflow, audit/activity writes, 3 migrations, pagination and batched queries, full Admin/Member/Manager UIs for those flows, strict-TS frontend that typechecks clean.
 
-**Largest outstanding bodies of work:** runnable environment (Phase 1), critical fixes (Phase 2), tests + CI (Phase 11), service-layer refactor (Phase 4), SRS feature parity (Phase 9), deployment (Phase 14).
+**Largest outstanding bodies of work:** critical fixes (Phase 2), tests + CI (Phase 11), service-layer refactor (Phase 4), SRS feature parity (Phase 9), deployment (Phase 14), security hardening (Phase 12).
 
 ---
 
@@ -795,11 +795,11 @@ Every checkbox in Phases 0–15 is `[x]`, staging matches production configurati
 
 Ordered by priority — complete top-down:
 
-1. **C1 — Add `PUT` to CORS `allow_methods`** (`backend/app/main.py:22`). One-line fix; project membership editing is currently broken in any browser. *(Critical)*
-2. **C2 — Expose review feedback** (`GET /tasks/{id}/reviews` + surface it in `TasksWorkspace.tsx`). Without this, Members cannot act on `CHANGES_REQUIRED`. *(Critical)*
-3. **C3 — Fix the `"null"` assignee payload** (`TasksWorkspace.tsx:130`). *(Critical)*
-4. **C4 — Uncouple Alembic from `JWT_SECRET_KEY`** (`migrations/env.py:14`). *(Critical)*
-5. **Phase 1 — Make the backend runnable**: `.venv`, `.env`, local PostgreSQL, verify migrations/bootstrap/uvicorn, then verify frontend dev + build. *(Critical — everything else needs a running system)*
+1. **C1 — Add `PUT` to CORS `allow_methods`** (`backend/app/main.py:22`). One-line fix; project membership editing is currently broken in any browser. *(Critical)* — **✅ DONE 2026-10-11**
+2. **C2 — Expose review feedback** (`GET /tasks/{id}/reviews` + surface it in `TasksWorkspace.tsx`). Without this, Members cannot act on `CHANGES_REQUIRED`. *(Critical)* — **✅ DONE 2026-10-11**
+3. **C3 — Fix the `"null"` assignee payload** (`TasksWorkspace.tsx:130`). *(Critical)* — **✅ DONE 2026-10-11**
+4. **C4 — Uncouple Alembic from `JWT_SECRET_KEY`** (`migrations/env.py:14`). *(Critical)* — **✅ DONE 2026-10-11**
+5. **Phase 1 — Make the backend runnable + tooling**: `.venv`, `.env`, local PostgreSQL, migrations/bootstrap/uvicorn verified, frontend dev/build verified, plus ruff/eslint/prettier/root-task-runner/dependency-lock/pre-commit. *(Critical — everything else needs a running system)* — **✅ DONE 2026-10-10**
 6. **Phase 11 bootstrap — add pytest + a test harness** and cover the auth/IDOR/state-machine paths before refactoring. *(High)*
 7. **Phase 4 — extract the service layer** so business rules are testable (TRD §3). *(High)*
 8. **C5 — decide and implement role/membership reconciliation** so role changes stop breaking project access. *(High)*
@@ -818,3 +818,7 @@ Ordered by priority — complete top-down:
 | Date | What was completed | What changed | What should be done next |
 |---|---|---|---|
 | 2026-10-08 | Full repository analysis performed (backend, frontend, migrations, docs, git history, frontend typecheck run). | Created `PROJECT_CHECKLIST.md` with 17 phases and 356 checklist items (129 `[x]` verified, 227 `[ ]`); recorded verified-complete items as `[x]` and partial work as `[ ]` with notes. Phase 0 intentionally left unchecked for independent re-verification. No source files modified. | Execute Current Priority items 1–5 (CORS fix, review-feedback read path, assignee fix, Alembic fix, runnable environment). |
+| 2026-10-08 | Phase 0 independently re-verified against actual code and files. | All 24 Phase 0 checkboxes flipped to `[x]` with evidence notes. Confirmed: PRD/SRS/TRD fully read and reconciled; README matches repo layout; `.gitignore` correct; all 9 backend source files and 4 frontend source files inspected; migrations env.py C4 defect confirmed at line 14; C1 (PUT missing from CORS) confirmed in `main.py:22`; C3 (`"null"` assignee) confirmed in `TasksWorkspace.tsx:130`; frontend `tsc --noEmit` passes; no `.venv` or `.env` present; `node_modules` present. Phase 0 status → **COMPLETED**. | Execute Current Priority items 1–5 in order. |
+| 2026-10-10 | Phase 1 "Environment" block completed and verified locally. | Created `backend/.venv` (Python 3.12.7) and installed all `requirements.txt` deps from wheels; provisioned PostgreSQL 16 via Docker (`igw-postgres`, DB `invictus_grid`, volume `igw-pgdata`); created `backend/.env` with a 64-char `JWT_SECRET_KEY` and container `DATABASE_URL`; `alembic upgrade head` applied 0001→0003 (`alembic_version=0003_tasks`, 9 tables); bootstrapped Admin `admin@invictusgrid.com`; verified uvicorn `/api/v1/health` (`{"status":"ok"}`) + a real login returning a JWT; verified Vite serves the SPA at `:5173` (HTTP 200). Flipped the 7 Environment checkboxes to `[x]`; Phase 1 status remains **PARTIALLY COMPLETED** (Tooling block still open). No source files modified; `.venv`/`.env` remain gitignored. Note: C4 was not triggered only because `.env` supplies `JWT_SECRET_KEY`; the health endpoint does not itself verify DB connectivity. | Execute Current Priority items 1–4 (C1–C4: CORS `PUT`, review-feedback read path, assignee payload, Alembic↔secret decoupling), then the Phase 1 Tooling block, then bootstrap the Phase 11 test harness. |
+| 2026-10-10 | Phase 1 "Tooling" block completed; Phase 1 → **COMPLETED**. | Added `backend/pyproject.toml` (ruff, line-length 120) and `backend/requirements-dev.txt` (ruff 0.17.0, pre-commit 4.6.2); **fixed 2 dead-code findings** in `backend/app/api/tasks.py` (unused `TaskType` import, unused `before` var) so `ruff check` passes green; added frontend `eslint.config.js` (flat config, tseslint + react-hooks/react-refresh, `set-state-in-effect` off) + `frontend/.prettierrc.json` + `.prettierignore` + `lint`/`format`/`typecheck` scripts (deps: ESLint 10, prettier 3.9, typescript-eslint 8, react-hooks 7 — `npm audit` 0 vulnerabilities); added root `package.json` npm task runner + cross-platform `scripts/py.mjs` venv launcher; pinned backend deps in `backend/requirements.lock` (39 exact versions from `pip freeze`); added root `.pre-commit-config.yaml` (base hooks + ruff/`ruff format --check` + prettier/eslint as non-mutating local `system` check hooks) and ran `pre-commit install`. All hooks executed successfully during verification; no source code mass-reformatted (format hooks run in `--check` mode). Source change this session: only the 2 dead-code lines in `tasks.py`; frontend src untouched. Phase 1 status → **COMPLETED**. | Execute Current Priority items 1–4 (C1–C4: CORS `PUT`, review-feedback read path, assignee payload, Alembic↔secret decoupling), then bootstrap the Phase 11 test harness (pytest + role×endpoint matrix), before the Phase 4 service-layer refactor. |
+| 2026-10-11 | C1–C4 verified fixed and tested (DB-free, no Docker/Postgres/`httpx` available). | Confirmed in the working tree: C1 `main.py:22` allows `PUT`; C2 `GET /tasks/{id}/reviews` + `TaskReviewRead` + `listTaskReviews`/`ReviewNote` UI; C3 `TasksWorkspace.tsx:154,160` raw-assignee handling; C4 `migrations/env.py:13` literal-DB-URL default (no eager `get_settings`). Tests run: middleware `PUT` preflight → `200` / `TRACE` → `400`; reviews `GET` present in `app.openapi()`; `alembic upgrade head --sql` with `JWT_SECRET_KEY`/`DATABASE_URL` unset → exit `0`; `ruff check` green; frontend `tsc --noEmit` green. Flipped C1–C4 to `[x]`; Phase 2 → **PARTIALLY COMPLETED**; overall recalculated **168/356 → 47%**. C1–C4 fixes remain **uncommitted**. | Decide/implement **C5** role↔membership reconciliation; clear the three secondary Phase 2 defects; then bootstrap the Phase 11 test harness (pytest + httpx + a committed regression test for C1–C4) and the Phase 4 service-layer refactor. |

@@ -22,8 +22,13 @@ _DUMMY_PASSWORD_HASH = hash_password("TimingOnly-NotARealAccount-93!")
 def set_refresh_cookie(response: Response, token: str) -> None:
     settings = get_settings()
     response.set_cookie(
-        REFRESH_COOKIE, token, httponly=True, secure=settings.cookie_secure, samesite=settings.refresh_cookie_samesite,
-        max_age=settings.refresh_token_days * 86400, path=f"{settings.api_v1_prefix}/auth",
+        REFRESH_COOKIE,
+        token,
+        httponly=True,
+        secure=settings.cookie_secure,
+        samesite=settings.refresh_cookie_samesite,
+        max_age=settings.refresh_token_days * 86400,
+        path=f"{settings.api_v1_prefix}/auth",
     )
 
 
@@ -73,16 +78,23 @@ def refresh(request: Request, response: Response, db: Session = Depends(get_db))
     if not raw_token:
         raise HTTPException(status_code=401, detail="Authentication required")
     old_session = db.scalar(
-        select(AuthSession)
-        .where(AuthSession.refresh_token_hash == hash_refresh_token(raw_token))
-        .with_for_update()
+        select(AuthSession).where(AuthSession.refresh_token_hash == hash_refresh_token(raw_token)).with_for_update()
     )
     user = db.get(User, old_session.user_id) if old_session else None
     if (
-        old_session is None or old_session.revoked_at is not None or old_session.expires_at <= utc_now()
-        or user is None or not user.is_active
+        old_session is None
+        or old_session.revoked_at is not None
+        or old_session.expires_at <= utc_now()
+        or user is None
+        or not user.is_active
     ):
-        response.delete_cookie(REFRESH_COOKIE, path=f"{settings.api_v1_prefix}/auth", secure=settings.cookie_secure, httponly=True, samesite=settings.refresh_cookie_samesite)
+        response.delete_cookie(
+            REFRESH_COOKIE,
+            path=f"{settings.api_v1_prefix}/auth",
+            secure=settings.cookie_secure,
+            httponly=True,
+            samesite=settings.refresh_cookie_samesite,
+        )
         raise HTTPException(status_code=401, detail="Authentication required")
 
     old_session.revoked_at = utc_now()
@@ -102,11 +114,19 @@ def logout(request: Request, response: Response, db: Session = Depends(get_db)) 
     check_browser_origin(request)
     raw_token = request.cookies.get(REFRESH_COOKIE)
     if raw_token:
-        auth_session = db.scalar(select(AuthSession).where(AuthSession.refresh_token_hash == hash_refresh_token(raw_token)))
+        auth_session = db.scalar(
+            select(AuthSession).where(AuthSession.refresh_token_hash == hash_refresh_token(raw_token))
+        )
         if auth_session and auth_session.revoked_at is None:
             auth_session.revoked_at = utc_now()
             db.commit()
-    response.delete_cookie(REFRESH_COOKIE, path=f"{settings.api_v1_prefix}/auth", secure=settings.cookie_secure, httponly=True, samesite=settings.refresh_cookie_samesite)
+    response.delete_cookie(
+        REFRESH_COOKIE,
+        path=f"{settings.api_v1_prefix}/auth",
+        secure=settings.cookie_secure,
+        httponly=True,
+        samesite=settings.refresh_cookie_samesite,
+    )
     return MessageResponse(message="Logged out")
 
 
@@ -116,7 +136,9 @@ def me(user: User = Depends(get_authenticated_user)) -> User:
 
 
 @router.post("/change-password", response_model=MessageResponse)
-def change_password(payload: PasswordChange, db: Session = Depends(get_db), user: User = Depends(get_authenticated_user)) -> MessageResponse:
+def change_password(
+    payload: PasswordChange, db: Session = Depends(get_db), user: User = Depends(get_authenticated_user)
+) -> MessageResponse:
     current_password = payload.current_password.get_secret_value()
     new_password = payload.new_password.get_secret_value()
     if not verify_password(current_password, user.password_hash):

@@ -4,7 +4,7 @@ from pydantic import EmailStr, TypeAdapter
 from sqlalchemy import func, select
 
 from app.core.security import hash_password
-from app.db.session import SessionLocal
+from app.db.session import get_session_factory
 from app.models import AuditLog, Role, User
 from app.schemas import validate_strong_password
 
@@ -17,7 +17,7 @@ def main() -> None:
     if not email or not full_name:
         raise SystemExit("Email and full name are required")
 
-    with SessionLocal() as db:
+    with get_session_factory()() as db:
         if (db.scalar(select(func.count()).select_from(User)) or 0) > 0:
             raise SystemExit("Bootstrap refused: users already exist. Use the Admin user-management API.")
         user = User(
@@ -30,13 +30,15 @@ def main() -> None:
         )
         db.add(user)
         db.flush()
-        db.add(AuditLog(
-            actor_id=user.id,
-            action="user.bootstrap_admin_created",
-            target_type="user",
-            target_id=str(user.id),
-            details={},
-        ))
+        db.add(
+            AuditLog(
+                actor_id=user.id,
+                action="user.bootstrap_admin_created",
+                target_type="user",
+                target_id=str(user.id),
+                details={},
+            )
+        )
         db.commit()
         print(f"Initial Admin account created: {email}")
 

@@ -264,6 +264,7 @@ class TaskReviewRead(BaseModel):
     id: UUID
     task_id: UUID
     reviewer_id: UUID
+    reviewer_name: str | None = None
     decision: str
     feedback: str | None
     created_at: datetime

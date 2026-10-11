@@ -1,4 +1,5 @@
 from collections.abc import Generator
+from functools import lru_cache
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
@@ -10,11 +11,13 @@ class Base(DeclarativeBase):
     """Base class for SQLAlchemy models."""
 
 
-engine = create_engine(get_settings().database_url, pool_pre_ping=True)
-SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+@lru_cache
+def get_session_factory() -> sessionmaker:
+    engine = create_engine(get_settings().database_url, pool_pre_ping=True)
+    return sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
 
 def get_db() -> Generator[Session, None, None]:
     """Yield a request-scoped database session."""
-    with SessionLocal() as session:
+    with get_session_factory()() as session:
         yield session
