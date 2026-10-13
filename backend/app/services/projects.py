@@ -7,7 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.errors import ConflictError, ForbiddenError, NotFoundError, ValidationError
-from app.models import AuditLog, Project, ProjectMember, Role, User, utc_now
+from app.models import AuditLog, NotificationType, Project, ProjectMember, Role, User, utc_now
 from app.repositories import projects as projects_repo
 from app.repositories import users as users_repo
 from app.schemas import (
@@ -17,8 +17,18 @@ from app.schemas import (
     ProjectMembershipReplace,
     ProjectPage,
     ProjectRead,
+    ProjectUpdate,
 )
+from app.services import notifications as notifications_service
 from app.services import permissions
+
+
+_PROJECT_TRANSITIONS = {
+    "PLANNED": {"ACTIVE"},
+    "ACTIVE": {"COMPLETED"},
+    "COMPLETED": {"ARCHIVED"},
+    "ARCHIVED": set(),
+}
 
 
 def _project_read(project: Project, counts: dict[str, int], progress: int = 0) -> ProjectRead:
@@ -88,6 +98,10 @@ def create_project(db: Session, actor: User, payload: ProjectCreate) -> ProjectR
                 "removed": {"managers": [], "members": []},
             },
         )
+        for user_id in payload.manager_ids + payload.member_ids:
+            notifications_service.create(
+                db, recipient_id=user_id, type=NotificationType.PROJECT_ADDED, project_id=project.id
+            )
         db.commit()
     except IntegrityError:
         db.rollback()
@@ -116,13 +130,68 @@ def list_projects(db: Session, actor: User, *, offset: int, limit: int, search: 
     )
 
 
+def get_project(db: Session, actor: User, project_id: UUID) -> ProjectRead:
+    project = projects_repo.get(db, project_id)
+    if project is None or permissions.project_role_for_user(db, project_id, actor) is None:
+        raise NotFoundError("Project not found")
+    counts = projects_repo.member_counts(db, [project_id])[project_id]
+    progress = projects_repo.progress(db, [project_id])[project_id]
+    return _project_read(project, counts, progress)
+
+
+def update_project(db: Session, actor: User, project_id: UUID, payload: ProjectUpdate) -> ProjectRead:
+    project = projects_repo.get_for_update(db, project_id)
+    if project is None:
+        raise NotFoundError("Project not found")
+    changes = payload.model_dump(exclude_unset=True)
+    if not changes:
+        raise ValidationError("At least one project field must be provided")
+
+    new_status = changes.get("status")
+    if new_status is not None:
+        new_status = new_status.value if hasattr(new_status, "value") else new_status
+        if new_status != project.status:
+            if new_status not in _PROJECT_TRANSITIONS.get(project.status, set()):
+                raise ConflictError(f"Cannot move a project from {project.status} to {new_status}")
+            _membership_audit(
+                db,
+                actor,
+                project,
+                "project.status_changed",
+                {"from": project.status, "to": new_status},
+            )
+            project.status = new_status
+
+    for field in ("name", "description", "due_date"):
+        if field in changes:
+            setattr(project, field, changes[field])
+
+    _membership_audit(db, actor, project, "project.updated", {"fields": sorted(changes.keys())})
+    db.commit()
+    db.refresh(project)
+    counts = projects_repo.member_counts(db, [project_id])[project_id]
+    progress = projects_repo.progress(db, [project_id])[project_id]
+    return _project_read(project, counts, progress)
+
+
+def delete_project(db: Session, actor: User, project_id: UUID) -> None:
+    project = projects_repo.get_for_update(db, project_id)
+    if project is None:
+        raise NotFoundError("Project not found")
+    _membership_audit(db, actor, project, "project.deleted", {"key": project.key, "name": project.name})
+    db.delete(project)
+    db.commit()
+
+
 def get_members(db: Session, actor: User, project_id: UUID) -> ProjectMembershipRead:
     if projects_repo.get(db, project_id) is None:
         raise NotFoundError("Project not found")
-    if (
-        actor.role != Role.ADMIN.value
-        and permissions.project_role_for_user(db, project_id, actor) != Role.MANAGER.value
-    ):
+    project_role = permissions.project_role_for_user(db, project_id, actor)
+    if project_role is None and actor.role != Role.ADMIN.value:
+        # Object-level concealment: callers who cannot see the project must not
+        # be able to tell it exists (uniform 404 policy, see docs/http-semantics.md).
+        raise NotFoundError("Project not found")
+    if actor.role != Role.ADMIN.value and project_role != Role.MANAGER.value:
         raise ForbiddenError("Only Admins and assigned project Managers can view project membership")
     rows = projects_repo.members_with_users(db, project_id)
     managers: list[ProjectMemberRead] = []
@@ -179,5 +248,10 @@ def replace_members(
             "project.membership_changed",
             {"added": added, "removed": removed, "role_changed": changed},
         )
+        for user_id in next_roles:
+            if user_id not in current_roles:
+                notifications_service.create(
+                    db, recipient_id=user_id, type=NotificationType.PROJECT_ADDED, project_id=project_id
+                )
         db.commit()
     return get_members(db, actor, project_id)

@@ -17,6 +17,11 @@ class Settings(BaseSettings):
     cookie_secure: bool = False
     refresh_cookie_samesite: Literal["lax", "strict", "none"] = "lax"
     log_level: str = "INFO"
+    trust_proxy_headers: bool = False
+    failed_login_max_attempts: int = 5
+    failed_login_lockout_minutes: int = 15
+    storage_dir: str = "storage"
+    attachment_max_bytes: int = 5 * 1024 * 1024
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 

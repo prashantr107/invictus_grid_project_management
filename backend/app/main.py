@@ -5,8 +5,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
+from app.api.activity import router as activity_router
+from app.api.analytics import router as analytics_router
+from app.api.attachments import router as attachments_router
+from app.api.audit import router as audit_router
 from app.api.auth import limiter, router as auth_router
+from app.api.comments import router as comments_router
+from app.api.github import router as github_router
 from app.api.health import router as health_router
+from app.api.notifications import router as notifications_router
 from app.api.projects import router as projects_router
 from app.api.tasks import router as tasks_router
 from app.api.users import router as users_router
@@ -53,4 +60,11 @@ app.include_router(health_router, prefix=settings.api_v1_prefix)
 app.include_router(auth_router, prefix=settings.api_v1_prefix)
 app.include_router(users_router, prefix=settings.api_v1_prefix)
 app.include_router(projects_router, prefix=settings.api_v1_prefix)
+app.include_router(analytics_router, prefix=settings.api_v1_prefix)
 app.include_router(tasks_router, prefix=settings.api_v1_prefix)
+app.include_router(comments_router, prefix=settings.api_v1_prefix)
+app.include_router(attachments_router, prefix=settings.api_v1_prefix)
+app.include_router(github_router, prefix=settings.api_v1_prefix)
+app.include_router(notifications_router, prefix=settings.api_v1_prefix)
+app.include_router(activity_router, prefix=settings.api_v1_prefix)
+app.include_router(audit_router, prefix=settings.api_v1_prefix)

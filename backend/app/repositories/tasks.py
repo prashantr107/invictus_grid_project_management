@@ -2,10 +2,31 @@
 
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
-from app.models import Task, TaskReview, User
+from app.models import Task, TaskPriority, TaskReview, User
+
+_PRIORITY_ORDER = case(
+    {
+        TaskPriority.LOW.value: 0,
+        TaskPriority.MEDIUM.value: 1,
+        TaskPriority.HIGH.value: 2,
+        TaskPriority.URGENT.value: 3,
+    },
+    value=Task.priority,
+    else_=0,
+)
+
+_SORT_ORDERS = {
+    "created_desc": Task.created_at.desc(),
+    "created_asc": Task.created_at.asc(),
+    "due_date_asc": Task.due_date.asc().nulls_last(),
+    "due_date_desc": Task.due_date.desc().nulls_last(),
+    "priority_desc": _PRIORITY_ORDER.desc(),
+    "priority_asc": _PRIORITY_ORDER.asc(),
+    "title_asc": Task.title.asc(),
+}
 
 
 def get(db: Session, task_id: UUID) -> Task | None:
@@ -25,6 +46,7 @@ def list_page(
     limit: int,
     status: str | None,
     priority: str | None,
+    sort: str | None = None,
 ) -> tuple[list[Task], int]:
     statement = select(Task).where(Task.project_id == project_id)
     count_statement = select(func.count()).select_from(Task).where(Task.project_id == project_id)
@@ -37,7 +59,8 @@ def list_page(
     if priority:
         statement = statement.where(Task.priority == priority)
         count_statement = count_statement.where(Task.priority == priority)
-    tasks = list(db.scalars(statement.order_by(Task.created_at.desc()).offset(offset).limit(limit)).all())
+    order_by = _SORT_ORDERS.get(sort or "created_desc", Task.created_at.desc())
+    tasks = list(db.scalars(statement.order_by(order_by).offset(offset).limit(limit)).all())
     total = db.scalar(count_statement) or 0
     return tasks, total
 

@@ -12,6 +12,7 @@ from app.schemas import (
     ProjectMembershipReplace,
     ProjectPage,
     ProjectRead,
+    ProjectUpdate,
 )
 from app.services import projects as projects_service
 
@@ -36,6 +37,34 @@ def list_projects(
     actor: User = Depends(get_current_user),
 ) -> ProjectPage:
     return projects_service.list_projects(db, actor, offset=offset, limit=limit, search=search)
+
+
+@router.get("/{project_id}", response_model=ProjectRead)
+def get_project(
+    project_id: UUID,
+    db: Session = Depends(get_db),
+    actor: User = Depends(get_current_user),
+) -> ProjectRead:
+    return projects_service.get_project(db, actor, project_id)
+
+
+@router.patch("/{project_id}", response_model=ProjectRead)
+def update_project(
+    project_id: UUID,
+    payload: ProjectUpdate,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_admin),
+) -> ProjectRead:
+    return projects_service.update_project(db, actor, project_id, payload)
+
+
+@router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_project(
+    project_id: UUID,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_admin),
+) -> None:
+    projects_service.delete_project(db, actor, project_id)
 
 
 @router.get("/{project_id}/members", response_model=ProjectMembershipRead)

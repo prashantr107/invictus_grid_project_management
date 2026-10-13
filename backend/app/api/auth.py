@@ -12,8 +12,22 @@ from app.schemas import LoginRequest, MessageResponse, PasswordChange, TokenResp
 from app.services import auth as auth_service
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
-limiter = Limiter(key_func=get_remote_address)
 REFRESH_COOKIE = "igw_refresh"
+
+
+def _client_address(request: Request) -> str:
+    """Rate-limit key: the real client IP when running behind a trusted proxy
+    (Render et al.), otherwise the socket peer address."""
+    if get_settings().trust_proxy_headers:
+        forwarded = request.headers.get("x-forwarded-for")
+        if forwarded:
+            first = forwarded.split(",")[0].strip()
+            if first:
+                return first
+    return get_remote_address(request)
+
+
+limiter = Limiter(key_func=_client_address)
 
 
 def set_refresh_cookie(response: Response, token: str) -> None:
@@ -57,12 +71,14 @@ def _token_response(user: User, access_token: str) -> TokenResponse:
 @router.post("/login", response_model=TokenResponse)
 @limiter.limit("5/minute")
 def login(request: Request, response: Response, payload: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse:
+    check_browser_origin(request)
     user, refresh_token, access_token = auth_service.login(db, str(payload.email), payload.password.get_secret_value())
     set_refresh_cookie(response, refresh_token)
     return _token_response(user, access_token)
 
 
 @router.post("/refresh", response_model=TokenResponse)
+@limiter.limit("20/minute")
 def refresh(request: Request, response: Response, db: Session = Depends(get_db)) -> TokenResponse:
     check_browser_origin(request)
     raw_token = request.cookies.get(REFRESH_COOKIE)
@@ -93,8 +109,12 @@ def me(user: User = Depends(get_authenticated_user)) -> User:
 
 
 @router.post("/change-password", response_model=MessageResponse)
+@limiter.limit("5/minute")
 def change_password(
-    payload: PasswordChange, db: Session = Depends(get_db), user: User = Depends(get_authenticated_user)
+    request: Request,
+    payload: PasswordChange,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_authenticated_user),
 ) -> MessageResponse:
     auth_service.change_password(
         db,

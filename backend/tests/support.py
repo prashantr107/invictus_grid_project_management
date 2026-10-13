@@ -13,7 +13,7 @@ from sqlalchemy.pool import StaticPool
 
 import app.models as models_module
 import app.services.auth as auth_service_module
-from app.core.security import create_access_token, hash_refresh_token
+from app.core.security import create_access_token, hash_password, hash_refresh_token
 from app.models import AuthSession, Project, ProjectMember, Role, User, utc_now
 
 TEST_DB = create_engine(
@@ -39,14 +39,14 @@ def override_get_db():
         yield session
 
 
-def make_user(db, name, email, role):
+def make_user(db, name, email, role, *, password=None, must_change_password=False):
     user = User(
         email=email,
         full_name=name,
         role=role.value,
-        password_hash="not-a-real-hash",
+        password_hash=hash_password(password) if password else "not-a-real-hash",
         is_active=True,
-        must_change_password=False,
+        must_change_password=must_change_password,
     )
     db.add(user)
     db.flush()

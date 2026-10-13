@@ -3,7 +3,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
 from app.core.context import actor_id_var
-from app.core.errors import AuthenticationError, ForbiddenError
+from app.core.errors import AuthenticationError, ForbiddenError, PasswordChangeRequiredError
 from app.db.session import get_db
 from app.models import Role, User
 from app.services import auth as auth_service
@@ -24,7 +24,7 @@ def get_authenticated_user(
 
 def get_current_user(user: User = Depends(get_authenticated_user)) -> User:
     if user.must_change_password:
-        raise ForbiddenError("Password change required")
+        raise PasswordChangeRequiredError()
     return user
 
 

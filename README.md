@@ -54,7 +54,9 @@ From the repository root, `npm run <task>` drives every common command:
 | `npm run backend:migrate` | `alembic upgrade head` |
 | `npm run backend:migrate:check` | `alembic check` — fails if the models and the database schema have drifted |
 | `npm run backend:seed` | load demo data (4 accounts, the `ALPHA` project, 5 tasks) into an empty database |
-| `npm run backend:install-dev` | install dev deps (ruff, pre-commit) into `backend/.venv` |
+| `npm run backend:install-dev` | install dev deps (ruff, pre-commit, pytest, pytest-cov) into `backend/.venv` |
+| `npm run test` / `backend:test` | run the backend pytest suite (in-memory SQLite, no Postgres needed) |
+| `npm run backend:test:cov` | run the suite with coverage (`--cov=app`); currently ~92% |
 | `npm run lint` | `ruff check` (backend) + `eslint` (frontend) |
 | `npm run typecheck` | `tsc --noEmit` (frontend) |
 | `npm run format` / `format:check` | `ruff format` + `prettier --write`, or the check-only variants |
@@ -65,6 +67,8 @@ Backend dependency versions are pinned in `backend/requirements.lock` (generated
 
 Implemented slices include authentication, Admin account provisioning and management, project creation and membership management, project-scoped task creation and assignment, task status and review workflows, database migrations, and the health endpoint. Admins can search and paginate the People and Projects directories, create accounts and projects, change user roles, manage project assignments, activate or deactivate accounts, and manage tasks. Managers see their assigned projects, create and assign project tasks, and review submissions. Members see only their assigned tasks, start or resume work, and submit tasks for review.
 
-The frontend keeps access tokens in memory and uses the HttpOnly refresh cookie to renew an expired access token after an authenticated request receives a 401. It retries that request once. Task comments, GitHub evidence, attachments, notifications, project analytics, and richer project dashboards remain planned.
+The backend API now also exposes the full Phase 6 surface under `/api/v1`: project detail/lifecycle (status transitions, update, delete), task deletion and list sorting, task comments, file attachments (multipart upload/download), GitHub evidence links, in-app notifications (list + mark-read), project/task activity feeds, Admin audit-log reads, per-project analytics (progress, counts by status/priority, overdue, contributions), and self-service profile updates. The generated API contract is committed at [`docs/openapi.json`](./docs/openapi.json) and the status-code policy is documented in [`docs/http-semantics.md`](./docs/http-semantics.md).
+
+The frontend keeps access tokens in memory and uses the HttpOnly refresh cookie to renew an expired access token after an authenticated request receives a 401. It retries that request once. The frontend UI for comments, GitHub evidence, attachments, notifications, and project analytics remains planned (Phase 7).
 
 Admin-provisioned accounts must change their initial password through `POST /api/v1/auth/change-password` before using Admin-only operations. Changing a password revokes active sessions, so the user signs in again afterward.

@@ -9,6 +9,7 @@ from app.core.errors import ConflictError, ForbiddenError, NotFoundError, Valida
 from app.models import (
     ActivityLog,
     AuditLog,
+    NotificationType,
     Project,
     Role,
     Task,
@@ -21,7 +22,17 @@ from app.models import (
 from app.repositories import projects as projects_repo
 from app.repositories import tasks as tasks_repo
 from app.repositories import users as users_repo
-from app.schemas import TaskCreate, TaskPage, TaskRead, TaskReviewCreate, TaskReviewRead, TaskStatusUpdate, TaskUpdate
+from app.schemas import (
+    TaskCreate,
+    TaskPage,
+    TaskRead,
+    TaskReviewCreate,
+    TaskReviewRead,
+    TaskSort,
+    TaskStatusUpdate,
+    TaskUpdate,
+)
+from app.services import notifications as notifications_service
 from app.services import permissions
 
 
@@ -135,6 +146,13 @@ def create_task(db: Session, actor: User, project_id: UUID, payload: TaskCreate)
     _audit(db, task, actor, "task.created", {"project_id": str(project_id), "issue_key": task.issue_key})
     if task.assignee_id:
         _activity(db, task, actor, "task.assigned", {"assignee_id": str(task.assignee_id)})
+        notifications_service.create(
+            db,
+            recipient_id=task.assignee_id,
+            type=NotificationType.TASK_ASSIGNED,
+            task_id=task.id,
+            project_id=project_id,
+        )
     db.commit()
     db.refresh(task)
     return _task_read(task, _assignee_name(db, task))
@@ -149,6 +167,7 @@ def list_tasks(
     limit: int,
     status: TaskStatus | None,
     priority: TaskPriority | None,
+    sort: TaskSort | None = None,
 ) -> TaskPage:
     project_for_user(db, project_id, actor)
     role = permissions.project_role_for_user(db, project_id, actor)
@@ -161,6 +180,7 @@ def list_tasks(
         limit=limit,
         status=status.value if status else None,
         priority=priority.value if priority else None,
+        sort=sort.value if sort else None,
     )
     assignee_ids = {task.assignee_id for task in tasks if task.assignee_id is not None}
     names = tasks_repo.names(db, assignee_ids)
@@ -215,6 +235,14 @@ def update_task(db: Session, actor: User, task_id: UUID, payload: TaskUpdate) ->
         }
         _activity(db, task, actor, "task.reassigned", reassignment)
         _audit(db, task, actor, "task.reassigned", reassignment)
+        if task.assignee_id:
+            notifications_service.create(
+                db,
+                recipient_id=task.assignee_id,
+                type=NotificationType.TASK_ASSIGNED,
+                task_id=task.id,
+                project_id=task.project_id,
+            )
     db.commit()
     db.refresh(task)
     return _task_read(task, _assignee_name(db, task))
@@ -252,6 +280,13 @@ def submit_for_review(db: Session, actor: User, task_id: UUID) -> TaskRead:
         raise ConflictError("Only an in-progress task can be submitted for review")
     task.status = TaskStatus.PENDING_REVIEW.value
     _activity(db, task, actor, "task.submitted_for_review", {})
+    notifications_service.notify_project_managers(
+        db,
+        project_id=task.project_id,
+        type=NotificationType.REVIEW_REQUESTED,
+        task_id=task.id,
+        exclude_id=actor.id,
+    )
     db.commit()
     db.refresh(task)
     return _task_read(task, _assignee_name(db, task))
@@ -271,6 +306,14 @@ def review_task(db: Session, actor: User, task_id: UUID, payload: TaskReviewCrea
     db.add(review)
     _activity(db, task, actor, "task.reviewed", {"from": previous, "to": task.status, "feedback": payload.feedback})
     _audit(db, task, actor, "task.reviewed", {"decision": decision, "feedback": payload.feedback})
+    if task.assignee_id:
+        notifications_service.create(
+            db,
+            recipient_id=task.assignee_id,
+            type=NotificationType.TASK_APPROVED if decision == "APPROVED" else NotificationType.CHANGES_REQUIRED,
+            task_id=task.id,
+            project_id=task.project_id,
+        )
     db.commit()
     db.refresh(review)
     return TaskReviewRead(
@@ -281,3 +324,12 @@ def review_task(db: Session, actor: User, task_id: UUID, payload: TaskReviewCrea
         feedback=review.feedback,
         created_at=review.created_at,
     )
+
+
+def delete_task(db: Session, actor: User, task_id: UUID) -> None:
+    task, project = task_for_user(db, task_id, actor)
+    _manager_can_access_task(db, task, actor)
+    _ensure_project_active(project)
+    _audit(db, task, actor, "task.deleted", {"project_id": str(task.project_id), "issue_key": task.issue_key})
+    db.delete(task)
+    db.commit()

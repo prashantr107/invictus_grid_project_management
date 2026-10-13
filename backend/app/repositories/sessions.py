@@ -32,3 +32,11 @@ def revoke_all_for_user(db: Session, user_id: UUID) -> None:
         .where(AuthSession.user_id == user_id, AuthSession.revoked_at.is_(None))
         .values(revoked_at=utc_now())
     )
+
+
+def revoke_family(db: Session, family_id: UUID) -> None:
+    db.execute(
+        update(AuthSession)
+        .where(AuthSession.family_id == family_id, AuthSession.revoked_at.is_(None))
+        .values(revoked_at=utc_now())
+    )

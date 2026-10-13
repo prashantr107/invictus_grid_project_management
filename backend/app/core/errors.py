@@ -80,6 +80,11 @@ class ForbiddenError(AppError):
     message = "You do not have permission to perform this action."
 
 
+class PasswordChangeRequiredError(ForbiddenError):
+    code = "password_change_required"
+    message = "Password change required."
+
+
 class NotFoundError(AppError):
     status_code = 404
     code = "not_found"

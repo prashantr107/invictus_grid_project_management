@@ -3,13 +3,33 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
-from app.api.dependencies import require_admin
+from app.api.dependencies import get_current_user, require_admin
 from app.db.session import get_db
 from app.models import User
-from app.schemas import UserCreate, UserPage, UserRead, UserRoleUpdate, UserStatusUpdate
+from app.schemas import (
+    PasswordReset,
+    UserCreate,
+    UserPage,
+    UserProfileUpdate,
+    UserRead,
+    UserRoleUpdate,
+    UserStatusUpdate,
+)
 from app.services import users as users_service
 
 router = APIRouter(prefix="/users", tags=["users"])
+
+
+@router.patch("/me", response_model=UserRead)
+def update_my_profile(
+    payload: UserProfileUpdate, db: Session = Depends(get_db), actor: User = Depends(get_current_user)
+) -> User:
+    return users_service.update_profile(db, actor, payload)
+
+
+@router.get("/{user_id}", response_model=UserRead)
+def get_user(user_id: UUID, db: Session = Depends(get_db), _: User = Depends(require_admin)) -> User:
+    return users_service.get_user(db, user_id)
 
 
 @router.post("", response_model=UserRead, status_code=status.HTTP_201_CREATED)
@@ -41,3 +61,10 @@ def update_user_role(
     user_id: UUID, payload: UserRoleUpdate, db: Session = Depends(get_db), actor: User = Depends(require_admin)
 ) -> User:
     return users_service.change_role(db, actor, user_id, payload.role)
+
+
+@router.post("/{user_id}/password-reset", response_model=UserRead)
+def reset_user_password(
+    user_id: UUID, payload: PasswordReset, db: Session = Depends(get_db), actor: User = Depends(require_admin)
+) -> User:
+    return users_service.reset_password(db, actor, user_id, payload.new_password.get_secret_value())

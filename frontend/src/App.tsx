@@ -3,7 +3,15 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import AdminUsers from "./AdminUsers";
 import AdminProjects from "./AdminProjects";
 import TasksWorkspace from "./TasksWorkspace";
-import { clearAccessToken, restoreSession, signIn, signOut, updatePassword, WorkspaceUser } from "./api";
+import {
+  clearAccessToken,
+  onPasswordChangeRequired,
+  restoreSession,
+  signIn,
+  signOut,
+  updatePassword,
+  WorkspaceUser,
+} from "./api";
 import { errorMessage, passwordIsStrong } from "./helpers";
 
 export default function App() {
@@ -13,6 +21,7 @@ export default function App() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [adminView, setAdminView] = useState<"people" | "projects" | "tasks">("people");
+  const [passwordChangeRequired, setPasswordChangeRequired] = useState(false);
   const startedRestore = useRef(false);
 
   useEffect(() => {
@@ -24,6 +33,11 @@ export default function App() {
       .finally(() => setCheckingSession(false));
   }, []);
 
+  useEffect(() => {
+    onPasswordChangeRequired(() => setPasswordChangeRequired(true));
+    return () => onPasswordChangeRequired(null);
+  }, []);
+
   async function handleSignIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
@@ -32,6 +46,7 @@ export default function App() {
     setBusy(true);
     try {
       setUser(await signIn(String(form.get("email")).trim(), String(form.get("password"))));
+      setPasswordChangeRequired(false);
     } catch (caught) {
       setError(errorMessage(caught));
     } finally {
@@ -61,6 +76,7 @@ export default function App() {
       const message = await updatePassword(currentPassword, newPassword);
       clearAccessToken();
       setUser(null);
+      setPasswordChangeRequired(false);
       setNotice(`${message} Use your new password to continue.`);
     } catch (caught) {
       setError(errorMessage(caught));
@@ -79,6 +95,7 @@ export default function App() {
       setError(errorMessage(caught));
     } finally {
       setUser(null);
+      setPasswordChangeRequired(false);
       setBusy(false);
     }
   }
@@ -149,7 +166,7 @@ export default function App() {
     );
   }
 
-  if (user.must_change_password) {
+  if (user.must_change_password || passwordChangeRequired) {
     return (
       <main className="page-shell">
         <section className="auth-card" aria-labelledby="password-title">

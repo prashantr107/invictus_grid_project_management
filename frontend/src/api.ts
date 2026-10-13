@@ -119,6 +119,19 @@ export class ApiError extends Error {
   }
 }
 
+export class PasswordChangeRequiredError extends ApiError {
+  constructor(message: string) {
+    super(message, 403);
+    this.name = "PasswordChangeRequiredError";
+  }
+}
+
+let passwordChangeHandler: (() => void) | null = null;
+
+export function onPasswordChangeRequired(handler: (() => void) | null): void {
+  passwordChangeHandler = handler;
+}
+
 export function clearAccessToken(): void {
   accessToken = null;
 }
@@ -163,13 +176,19 @@ async function request<T>(path: string, init: RequestInit = {}, authenticated = 
 
   if (!response.ok) {
     let message = "Something went wrong. Please try again.";
+    let code: string | null = null;
     try {
-      const body = (await response.json()) as { detail?: unknown };
+      const body = (await response.json()) as { detail?: unknown; code?: unknown };
       if (typeof body.detail === "string") message = body.detail;
-      if (response.status === 401 && path !== "/auth/login") message = "Your session has expired. Sign in again.";
-      if (response.status === 429) message = "Too many attempts. Wait a minute, then try again.";
+      if (typeof body.code === "string") code = body.code;
     } catch {
       // Keep the generic message when the response is not JSON.
+    }
+    if (response.status === 401 && path !== "/auth/login") message = "Your session has expired. Sign in again.";
+    if (response.status === 429) message = "Too many attempts. Wait a minute, then try again.";
+    if (response.status === 403 && code === "password_change_required") {
+      passwordChangeHandler?.();
+      throw new PasswordChangeRequiredError(message);
     }
     throw new ApiError(message, response.status);
   }

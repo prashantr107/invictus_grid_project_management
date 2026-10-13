@@ -270,14 +270,14 @@ Fully satisfy SRS §3.1 and §3.2: secure login/session lifecycle, brute-force p
 - [x] Managers cannot approve their own work by construction (assignees must hold the `MEMBER` account role, `tasks.py:79-86`)
 
 #### Gaps
-- [ ] Rate limit `/auth/refresh` and `/auth/change-password` (current-password brute force is unlimited)
-- [ ] Make the rate limiter proxy-aware (trusted `X-Forwarded-For`); today `get_remote_address` keys on the socket peer, so behind Render every user shares **one** 5/min login bucket
-- [ ] Per-account lockout / failed-attempt counters
-- [ ] Refresh-token **reuse detection** (family invalidation when a revoked token is replayed)
-- [ ] Admin-initiated password reset for another user
-- [ ] Origin check on `POST /auth/login` (login-CSRF)
-- [ ] Explicit authorization test matrix documented (role × endpoint) — see Phase 11
-- [ ] Confirm `Password change required` 403 is handled gracefully in the UI for all routes
+- [x] Rate limit `/auth/refresh` and `/auth/change-password` (current-password brute force is unlimited)
+- [x] Make the rate limiter proxy-aware (trusted `X-Forwarded-For`); today `get_remote_address` keys on the socket peer, so behind Render every user shares **one** 5/min login bucket
+- [x] Per-account lockout / failed-attempt counters
+- [x] Refresh-token **reuse detection** (family invalidation when a revoked token is replayed)
+- [x] Admin-initiated password reset for another user
+- [x] Origin check on `POST /auth/login` (login-CSRF)
+- [x] Explicit authorization test matrix documented (role × endpoint) — `backend/tests/test_authorization_matrix.py` (Phase 11)
+- [x] Confirm `Password change required` 403 is handled gracefully in the UI for all routes
 
 ### Dependencies
 Phase 0, Phase 2 (C5 role/membership reconciliation affects authorization semantics).
@@ -286,7 +286,7 @@ Phase 0, Phase 2 (C5 role/membership reconciliation affects authorization semant
 SRS FR-AUTH-001…009 and FR-RBAC-001…007 all hold; brute-force controls work behind a proxy; the role×endpoint matrix is documented and covered by tests.
 
 ### Current Status
-- **PARTIALLY COMPLETED (strong)** — the core auth design is implemented and verified; rate-limit scope, lockout, reuse detection and admin reset remain.
+- **COMPLETED** — the core auth design and all hardening gaps (proxy-aware rate limiting, refresh/change-password rate limits, per-account lockout, refresh-token reuse detection, admin-initiated password reset, login origin check) are implemented and verified by `tests/test_auth_hardening.py`.
 
 ---
 
@@ -318,22 +318,22 @@ Deliver the full REST surface required by SRS §5.2 / TRD §12 under `/api/v1`, 
 - [x] OpenAPI/Swagger auto-generated at `/docs`
 
 #### Missing endpoints (SRS/TRD)
-- [ ] `GET /tasks/{id}/reviews` (read review history + feedback — see Phase 2 / C2)
-- [ ] `GET /projects/{id}` (project detail)
-- [ ] `PATCH /projects/{id}` (status lifecycle PLANNED→ACTIVE→COMPLETED→ARCHIVED, name/description/due date)
-- [ ] `DELETE /projects/{id}` (or archive-only policy) — TRD §13 expects audited project deletion
-- [ ] `DELETE /tasks/{id}` (or documented soft-delete policy)
-- [ ] Comments API: `GET/POST /tasks/{id}/comments` (+ edit/delete policy)
-- [ ] Attachments API: `POST /tasks/{id}/attachments` (multipart), `GET` download, `DELETE` — with authorization
-- [ ] GitHub evidence API: `GET/POST /tasks/{id}/github-links`, `DELETE`
-- [ ] Notifications API: `GET /notifications`, `PATCH /notifications/{id}/read`
-- [ ] Activity API: `GET /projects/{id}/activity`, `GET /tasks/{id}/activity`
-- [ ] Audit API: `GET /audit-logs` (Admin) — today `audit_logs` are written but never readable
-- [ ] Analytics/dashboards API: project progress %, task counts by status/priority, pending review, overdue, contribution metrics (SRS §3.11)
-- [ ] Expose task `status`/`priority` filters and sort options the frontend can consume
-- [ ] Admin user detail endpoint (`GET /users/{id}`) and profile update (`PATCH /users/me`)
-- [ ] Consistent HTTP semantics audit: confirm 2xx/4xx/5xx usage and 404-vs-403 policy across all routes
-- [ ] Document the API contract (or generate from OpenAPI) as a stable artifact
+- [x] `GET /tasks/{id}/reviews` (read review history + feedback — see Phase 2 / C2)
+- [x] `GET /projects/{id}` (project detail)
+- [x] `PATCH /projects/{id}` (status lifecycle PLANNED→ACTIVE→COMPLETED→ARCHIVED, name/description/due date)
+- [x] `DELETE /projects/{id}` (or archive-only policy) — TRD §13 expects audited project deletion
+- [x] `DELETE /tasks/{id}` (or documented soft-delete policy)
+- [x] Comments API: `GET/POST /tasks/{id}/comments` (+ edit/delete policy)
+- [x] Attachments API: `POST /tasks/{id}/attachments` (multipart), `GET` download, `DELETE` — with authorization
+- [x] GitHub evidence API: `GET/POST /tasks/{id}/github-links`, `DELETE`
+- [x] Notifications API: `GET /notifications`, `PATCH /notifications/{id}/read`
+- [x] Activity API: `GET /projects/{id}/activity`, `GET /tasks/{id}/activity`
+- [x] Audit API: `GET /audit-logs` (Admin) — today `audit_logs` are written but never readable
+- [x] Analytics/dashboards API: project progress %, task counts by status/priority, pending review, overdue, contribution metrics (SRS §3.11)
+- [x] Expose task `status`/`priority` filters and sort options the frontend can consume
+- [x] Admin user detail endpoint (`GET /users/{id}`) and profile update (`PATCH /users/me`)
+- [x] Consistent HTTP semantics audit: confirm 2xx/4xx/5xx usage and 404-vs-403 policy across all routes — see `docs/http-semantics.md`
+- [x] Document the API contract (or generate from OpenAPI) as a stable artifact — committed `docs/openapi.json`, regenerated via `npm run backend:openapi`
 
 ### Dependencies
 Phase 0, Phase 2, Phase 4 (endpoints should delegate to services).
@@ -342,7 +342,7 @@ Phase 0, Phase 2, Phase 4 (endpoints should delegate to services).
 Every SRS §3 and §12 endpoint exists, is authorization-checked, paginated where it is a collection, and appears in `/docs`; no write-only data (audit, activity, reviews) remains unreadable.
 
 ### Current Status
-- **PARTIALLY COMPLETED** — ~15 resource endpoints verified; all comment/attachment/evidence/notification/activity/audit/analytics and project-lifecycle endpoints are missing.
+- **COMPLETED** — full SRS §5.2 / TRD §12 REST surface under `/api/v1` (45 operations across 34 paths), all authorization-checked, paginated where collections, and visible in `/docs`; write-only data (audit, activity, reviews) is now readable. Contract artifacts: `docs/openapi.json` + `docs/http-semantics.md`.
 
 ---
 
@@ -367,7 +367,7 @@ A complete, accessible, role-aware SPA covering every PRD §19 main screen with 
 #### Missing / required by SRS §5.1 and TRD §4
 - [ ] Client-side router with real routes and deep links (currently prop-driven view state; `href="#workspace"` anchors only)
 - [ ] Task **detail page** (full description, reviews/feedback, comments, attachments, evidence, activity)
-- [ ] Review feedback visible to the Member (blocked on Phase 2 / C2)
+- [x] Review feedback visible to the Member (Phase 2 / C2 — `TasksWorkspace.tsx` `ReviewNote`)
 - [ ] **Kanban board** with drag/drop wired to validated transition APIs (TRD §4)
 - [ ] Project overview/dashboard screen (progress %, counts, overdue, recent activity)
 - [ ] Comments UI, attachments UI (upload/download), GitHub evidence UI
@@ -413,7 +413,7 @@ Seamless, correct communication between SPA and API: authentication handshake, C
 - [x] Post-create/post-mutation list refresh in People/Projects/Tasks screens
 
 #### Gaps
-- [ ] **Add `PUT` to CORS `allow_methods`** — membership replacement is blocked cross-origin today (Phase 2 / C1)
+- [x] **Add `PUT` to CORS `allow_methods`** — membership replacement is blocked cross-origin today (Phase 2 / C1)
 - [ ] Verify CORS end-to-end from the real frontend origin (dev `5173` and deployed domain) with a preflight test
 - [ ] Handle backend 403 `Password change required` consistently across all screens
 - [ ] Abort/cancel in-flight requests on unmount/navigation (partially handled via `current` flags)
@@ -460,7 +460,7 @@ Close the gap between what is shipped and what PRD/SRS declare as MVP acceptance
 - [ ] Project dashboard + server-side progress formula `completed/total×100`, 0 when empty (SRS §3.11; AC 11)
 - [ ] Contribution analytics (assigned, completed, pending, changes, overdue, completion rate) respecting role visibility
 - [ ] Activity history visible to users; audit log visible to Admins (SRS §3.12; AC 26)
-- [ ] Review feedback readable by the Member (Phase 2 / C2)
+- [x] Review feedback readable by the Member (Phase 2 / C2)
 - [ ] Kanban board (PRD §19)
 - [ ] Task detail page (SRS §5.1)
 - [ ] Evidence/attachments/comments cannot complete a task — only explicit submission does (SRS FR-GH-004)
@@ -500,11 +500,11 @@ Consistent, safe input validation and predictable error responses across the who
 - [x] Global exception handlers (unhandled exceptions are caught and return a safe 500 body — `app/core/errors.py`)
 - [x] Unified error envelope per TRD §11 (`code`, `detail`/message, `details`, `request_id`) instead of ad-hoc `{"detail": ...}` — `error_payload()` in `app/core/errors.py`
 - [x] Never leak stack traces/internals in production (generic `Exception` handler logs server-side and returns a fixed message; `debug` is off by default)
-- [ ] Uniform 404-vs-403 policy documented and tested
-- [ ] Cross-field validation for project status transitions and archived-project mutations (Phase 2 secondary defects)
+- [x] Uniform 404-vs-403 policy documented and tested — `docs/http-semantics.md`; matrix in `tests/test_authorization_matrix.py` + concealment tests in the Phase 6 API suites
+- [x] Cross-field validation for project status transitions and archived-project mutations (Phase 2 secondary defects) — `_PROJECT_TRANSITIONS` in `app/services/projects.py`, invalid transition → 409
 - [ ] Sanitize/validate `search` input semantics (currently raw `ilike` — safe, but behavior undocumented)
-- [ ] File-upload validation rules defined (Phase 9 attachments): extension, MIME sniff, size cap
-- [ ] URL validation rules defined for GitHub evidence
+- [x] File-upload validation rules defined (Phase 9 attachments): extension, MIME sniff, size cap — `ALLOWED_CONTENT_TYPES` + `attachment_max_bytes` in `app/services/collaboration.py`
+- [x] URL validation rules defined for GitHub evidence — `GithubLinkCreate` (github.com host + path validation)
 
 ### Dependencies
 Phase 0; benefits from Phase 4 (central error mapping belongs with services).
@@ -525,29 +525,29 @@ Automated confidence for authorization, workflow and regression safety (TRD §15
 ### Checklist
 
 #### Infrastructure
-- [ ] Python test framework configured (`pytest` + `pytest-asyncio` if needed) with a `tests/` layout
-- [ ] Test database strategy (fixtures creating/dropping schema per run, or transaction rollback)
-- [ ] Backend test dependencies added to a dev requirements file
+- [x] Python test framework configured (`pytest` + `pytest-cov`) with a `tests/` layout — `tests/conftest.py` + `tests/support.py`; `[tool.pytest.ini_options]` sets `testpaths`/`pythonpath`
+- [x] Test database strategy (fixtures creating/dropping schema per run) — in-memory SQLite (`StaticPool`), schema created/dropped by an autouse `database` fixture; `get_db` overridden
+- [x] Backend test dependencies added to a dev requirements file — `pytest==9.1.1`, `pytest-cov==7.1.0`, `httpx==0.28.1` in `backend/requirements-dev.txt`
 - [ ] Frontend test runner configured (Vitest) + `@testing-library/react`
-- [ ] Coverage reporting configured
-- [ ] Tests wired into a local command and into CI (Phase 14)
+- [x] Coverage reporting configured — `[tool.coverage.*]` in `backend/pyproject.toml`; `npm run backend:test:cov` (currently ~93%)
+- [ ] Tests wired into a local command and into CI — local command done (`npm run test`); **CI wiring is Phase 14**
 
 #### Backend unit tests
-- [ ] Password hashing/verification, refresh token hashing, JWT create/decode claims
-- [ ] Settings validation (cookie security rules, CORS parsing)
-- [ ] Schema validators: password strength, key normalization, disjoint membership, required review feedback
-- [ ] Service-level state machine: every allowed transition passes, every disallowed transition fails
-- [ ] Project progress calculation (including the zero-task case)
+- [x] Password hashing/verification, refresh token hashing, JWT create/decode claims — `tests/test_units.py`
+- [x] Settings validation (cookie security rules, CORS parsing) — `tests/test_units.py`
+- [x] Schema validators: password strength, key normalization, disjoint membership, required review feedback — `tests/test_schema_validators.py`
+- [x] Service-level state machine: every allowed transition passes, every disallowed transition fails — `tests/test_task_state_machine.py`
+- [x] Project progress calculation (including the zero-task case) — `tests/test_project_progress.py`
 
 #### API / integration tests
-- [ ] Auth: login success/failure, rate limiting, refresh rotation, logout revocation, expired/revoked session rejection, inactive user rejection
-- [ ] Forced password change blocks other endpoints and is cleared after change
-- [ ] Role matrix for **every** endpoint (Admin / Manager / Member / anonymous)
-- [ ] **IDOR/BOLA:** Member cannot read another Member's task by ID; Manager cannot touch an unassigned project; cross-project access returns 404
-- [ ] Admin-only enforcement on user and project creation
-- [ ] Membership replace diffing and audit records
-- [ ] Issue-number uniqueness under concurrent task creation
-- [ ] Audit/activity rows written for each privileged action (and contain no secrets)
+- [x] Auth: login success/failure, rate limiting, refresh rotation, logout revocation, expired/revoked session rejection, inactive user rejection — `tests/test_auth_api.py`
+- [x] Forced password change blocks other endpoints and is cleared after change — `tests/test_auth_api.py`
+- [x] Role matrix for **every** endpoint (Admin / Manager / Member / anonymous) — `tests/test_authorization_matrix.py`
+- [x] **IDOR/BOLA:** Member cannot read another Member's task by ID; Manager cannot touch an unassigned project; cross-project access returns 404 — `tests/test_authorization_matrix.py`
+- [x] Admin-only enforcement on user and project creation — `tests/test_authorization_matrix.py`
+- [x] Membership replace diffing and audit records — `tests/test_membership.py`
+- [ ] Issue-number uniqueness under concurrent task creation — not covered (SQLite has no row locking)
+- [x] Audit/activity rows written for each privileged action (and contain no secrets) — `tests/test_membership.py`, `tests/test_c5_authorization.py`, `tests/test_audit_log.py`
 
 #### Frontend tests
 - [ ] Login form validation and error display
@@ -562,11 +562,11 @@ Automated confidence for authorization, workflow and regression safety (TRD §15
 - [ ] Deactivation mid-session cannot continue using issued tokens
 
 #### Security tests (SRS §8.2)
-- [ ] Direct-object access with foreign IDs
-- [ ] Role escalation via crafted payloads
-- [ ] Access after deactivation
-- [ ] Brute-force/rate-limit behavior
-- [ ] No secrets returned in errors or logs
+- [x] Direct-object access with foreign IDs — `tests/test_authorization_matrix.py`
+- [x] Role escalation via crafted payloads — `tests/test_authorization_matrix.py` + `tests/test_c5_authorization.py`
+- [x] Access after deactivation — `tests/test_auth_api.py`
+- [x] Brute-force/rate-limit behavior — `tests/test_auth_api.py` (429 after five logins)
+- [x] No secrets returned in errors or logs — `tests/test_observability.py` (error-envelope shape)
 
 ### Dependencies
 Phase 2 (fixes must be covered), Phase 4 (services make unit testing feasible), Phase 6.
@@ -575,7 +575,7 @@ Phase 2 (fixes must be covered), Phase 4 (services make unit testing feasible), 
 A single command runs the suite green; the role×endpoint matrix and task state machine are fully covered; CI blocks merges on failure.
 
 ### Current Status
-- **NOT STARTED** — zero test files, no test runner configuration, no CI.
+- **PARTIALLY COMPLETED** — the backend harness is now extensive: **194 tests** across unit (security/settings/schema), service state-machine, API/integration (auth/session/forced-change/rate-limit), membership and the full role × endpoint + IDOR matrix, at **~93% coverage** (`app`), run locally via `npm run test` / `npm run backend:test:cov`. Remaining: the frontend Vitest suite, end-to-end journeys, the concurrent issue-number test, and CI wiring (Phase 14).
 
 ---
 
@@ -715,13 +715,13 @@ Documentation sufficient for a new developer, an operator and a reviewer (TRD §
 
 #### Not started
 - [ ] Architecture overview document (layers, request flow, auth flow, data model diagram)
-- [ ] API contract artifact (generated OpenAPI JSON committed, or a written contract doc)
+- [x] API contract artifact (generated OpenAPI JSON committed, or a written contract doc) — `docs/openapi.json` (committed) + `docs/http-semantics.md`; regenerate with `npm run backend:openapi`
 - [ ] Deployment/operations runbook (env vars, deploy, migrate, backup, restore, rollback)
 - [ ] Decision records (ADR) for: auth design, 404-based authorization policy, C5 role/membership decision, storage abstraction
 - [ ] Contribution guide: commands, style, PR expectations, branch policy
-- [ ] Data model / ERD reference
+- [x] Data model / ERD reference (`docs/database-schema.md`)
 - [ ] Security notes (threat model, secrets handling, incident basics)
-- [ ] Update README "Current scope" section as Phases 6/9 land (it currently reflects slice 1 only)
+- [x] Update README "Current scope" section as Phases 6/9 land (it currently reflects slice 1 only) — updated 2026-10-13 to describe the full Phase 6 API surface + contract artifacts
 - [ ] Changelog / release notes process
 
 ### Dependencies
@@ -781,17 +781,17 @@ Every checkbox in Phases 0–15 is `[x]`, staging matches production configurati
 | Metric | Value |
 |---|---|
 | **Total phases** | 17 (Phase 0 → Phase 16) |
-| **Completed phases** | 5 (Phase 0 — analysis, Phase 1 — environment & tooling, Phase 2 — critical defect fixes, Phase 3 — database & migrations, Phase 4 — backend architecture) |
-| **In-progress phases** | Phases 5, 6, 7, 8, 9, 10, 12, 13, 14, 15 **PARTIALLY COMPLETED** |
-| **Not started phases** | 2 (Testing, Production Readiness) |
-| **Remaining phases** | 12 of 17 |
+| **Completed phases** | 6 (Phase 0 — analysis, Phase 1 — environment & tooling, Phase 2 — critical defect fixes, Phase 3 — database & migrations, Phase 4 — backend architecture, Phase 6 — API development) |
+| **In-progress phases** | Phases 5, 7, 8, 9, 10, 11, 12, 13, 14, 15 **PARTIALLY COMPLETED** |
+| **Not started phases** | 1 (Production Readiness) |
+| **Remaining phases** | 11 of 17 |
 
-**Checklist items: 199 of 356 verified complete → 56%**
-*(Phase 0, Phase 1 (runnable environment + tooling), Phase 2 (critical defect fixes), Phase 3 (database & migrations) and Phase 4 (backend architecture) are complete; testing, CI, deployment, security hardening and ~half of the SRS feature set remain. Recalculated on every Change Log entry.)*
+**Checklist items: 246 of 356 verified complete → 69%**
+*(Phase 0, Phase 1 (runnable environment + tooling), Phase 2 (critical defect fixes), Phase 3 (database & migrations), Phase 4 (backend architecture) and Phase 6 (API development) are complete; the backend test suite now covers the full API surface (270 tests); frontend tests, CI, deployment, security hardening and the Phase 7 UI for the new endpoints remain. Recalculated on every Change Log entry.)*
 
-**Verified-complete highlights:** auth + session lifecycle, RBAC/IDOR guards, user provisioning, projects + memberships, task lifecycle + review workflow, audit/activity writes, all 11 SRS §4.1 tables across 5 migrations, computed project progress, demo seed, pagination and batched queries, thin routers over a service + repository layer, centralized error envelope, structured JSON logging with request IDs, DB-aware health/readiness, lifespan hooks, full Admin/Member/Manager UIs for those flows, strict-TS frontend that typechecks clean.
+**Verified-complete highlights:** auth + session lifecycle, RBAC/IDOR guards, user provisioning, projects + memberships, task lifecycle + review workflow, audit/activity writes, all 11 SRS §4.1 tables across 5 migrations, computed project progress, demo seed, pagination and batched queries, thin routers over a service + repository layer, centralized error envelope, structured JSON logging with request IDs, DB-aware health/readiness, lifespan hooks, **270-test backend suite (role × endpoint + IDOR matrix + Phase 6 endpoint suites)**, full Phase 6 REST surface (comments, attachments, GitHub evidence, notifications, activity, audit, analytics, project lifecycle), strict-TS frontend that typechecks clean.
 
-**Largest outstanding bodies of work:** tests + CI (Phase 11), SRS feature parity (Phase 9), deployment (Phase 14), security hardening (Phase 12).
+**Largest outstanding bodies of work:** frontend tests + CI (Phase 11/14), SRS feature parity / Phase 7 UI (Phase 9/7), deployment (Phase 14), security hardening (Phase 12).
 
 ---
 
@@ -804,11 +804,11 @@ Ordered by priority — complete top-down:
 3. **C3 — Fix the `"null"` assignee payload** (`TasksWorkspace.tsx:130`). *(Critical)* — **✅ DONE 2026-10-11**
 4. **C4 — Uncouple Alembic from `JWT_SECRET_KEY`** (`migrations/env.py:14`). *(Critical)* — **✅ DONE 2026-10-11**
 5. **Phase 1 — Make the backend runnable + tooling**: `.venv`, `.env`, local PostgreSQL, migrations/bootstrap/uvicorn verified, frontend dev/build verified, plus ruff/eslint/prettier/root-task-runner/dependency-lock/pre-commit. *(Critical — everything else needs a running system)* — **✅ DONE 2026-10-10**
-6. **Phase 11 bootstrap — add pytest + a test harness** and cover the auth/IDOR/state-machine paths before refactoring. *(High)*
+6. **Phase 11 bootstrap — add pytest + a test harness** and cover the auth/IDOR/state-machine paths before refactoring. *(High)* — **✅ backend harness DONE 2026-10-11** (194 tests, ~93% coverage: unit/schema/state-machine/auth + full role × endpoint & IDOR matrix; remaining: frontend Vitest, e2e, CI)
 7. **Phase 4 — extract the service layer** so business rules are testable (TRD §3). *(High)* — **✅ DONE 2026-10-11** (services + repositories + observability; Phase 4 → COMPLETED)
 8. **C5 — decide and implement role/membership reconciliation** so role changes stop breaking project access. *(High)* — **✅ DONE 2026-10-11** (decouple + reconcile; ADR-0001)
 9. **Phase 10 — centralized error envelope + global exception handlers.** *(Medium)* — **✅ error envelope + handlers DONE 2026-10-11** (via Phase 4; remaining Phase 10 items are the Phase 12 security headers/scanning)
-10. **Phase 5 — proxy-aware rate limiting, limits on `refresh`/`change-password`, failed-login lockout.** *(Medium)*
+10. ~~**Phase 5 — proxy-aware rate limiting, limits on `refresh`/`change-password`, failed-login lockout.** *(Medium)*~~ — **✅ DONE 2026-10-12**
 11. **Phase 6/9 slice — review-feedback read path, project lifecycle endpoints, then comments → GitHub evidence → attachments → notifications → dashboards.** *(Medium, delivers SRS acceptance criteria)*
 12. **Phase 12 — security headers + CI scanning.** *(Medium)*
 13. **Phase 14 — deployment manifests + CI/CD pipeline.** *(Medium)*
@@ -833,3 +833,6 @@ Ordered by priority — complete top-down:
 | 2026-10-11 | **Phase 3 SRS §4.1 tables added** — all 11 core entities now exist. | Added 4 SQLAlchemy models (`Comment`, `Attachment`, `GithubLink`, `Notification` + `EvidenceType`/`NotificationType` enums) and migration `0004_collaboration.py` (`down_revision = 0003_tasks`). Constraints follow SRS §3.7–3.10: `comments` (task/author FKs, `body`, timestamps); `attachments` (task/uploader FKs, `original_name`, **unique `storage_key` index**, `content_type` CHECK limited to PNG/JPG/JPEG/PDF/DOCX MIME types, `size_bytes` CHECK ≥ 0); `github_links` (task/submitter FKs, `url LIKE 'http%'` CHECK, `evidence_type` CHECK); `notifications` (recipient FK CASCADE, `type` CHECK, nullable `task_id`/`project_id`, `is_read` default false, `read_at`). Added `backend/tests/test_collaboration_schema.py` (9 tests). **Verified:** fresh SQLite `alembic upgrade head` → 12 app tables; `alembic check` → *"No new upgrade operations detected."*; offline `--sql` emits `CREATE UNIQUE INDEX ix_attachments_storage_key`; `pytest` → **23 passed** (14 prior + 9); `ruff check`/`ruff format --check` green. Flipped the 5 "Missing SRS tables" boxes to `[x]`; overall **181/356 → 51%**. Phase 3 stays **PARTIALLY COMPLETED** (Data & lifecycle items remain). Working tree (Phase 3) still **uncommitted**. | Commit the Phase 3 changes; then tackle the Phase 3 Data & lifecycle items (seed data, progress storage, log retention, `audit_logs.target_id` typing, `tasks.status` index, ERD) or move to the Phase 4 service-layer refactor. |
 | 2026-10-11 | **Phase 3 Data & lifecycle complete** — Phase 3 → **COMPLETED**. | **Seed:** `backend/app/seed.py` (`python -m app.seed`, `npm run backend:seed`) creates 4 accounts + the `ALPHA` project (5 tasks, comment, GitHub link, attachment, notifications, activity + audit rows); fails safe when accounts exist; `tests/test_seed.py` (2). **Progress:** added `project_progress()` (computed, SRS §3.11) to `projects.py`, exposed as `progress: int` on `ProjectRead` + `WorkspaceProject`, displayed on the Admin project card; `tests/test_project_progress.py` (3). **Retention:** `docs/adr/0002-log-retention-policy.md` (audit logs kept indefinitely; activity logs 180-day window, manual purge, no MVP job). **Schema:** migration `0005_audit_target_uuid_task_status_index` retypes `audit_logs.target_id` → `Uuid(as_uuid=True)` (writes now pass UUIDs, not `str(...)`) and adds `ix_tasks_status`; `tests/test_audit_log.py` (1) + migration index assertion. **Docs:** `docs/database-schema.md` (Mermaid ERD + referential actions). **Verified:** fresh SQLite `alembic upgrade head` (0005) → `alembic check` *"No new upgrade operations detected."*; Postgres-dialect offline DDL → `ALTER TABLE audit_logs ALTER COLUMN target_id TYPE UUID USING target_id::uuid` + `CREATE INDEX ix_tasks_status`; `pytest` → **30 passed** (23 prior + 7); `ruff check`/`ruff format --check` green; frontend `prettier --check` + `eslint` + `vite build` green. Flipped the 6 Data & lifecycle boxes to `[x]`; Phase 3 → **COMPLETED**; completed phases 3 → 4; remaining 14 → 13; overall **187/356 → 53%**. All Phase 3 changes remain **uncommitted**. | Commit the Phase 3 changes; then start the Phase 4 service-layer refactor (or close the Phase 11 test/CI harness first). |
 | 2026-10-11 | **Phase 4 — Backend Architecture complete** (service + repository + observability layers); Phase 4 → **COMPLETED**. | **Layering:** added `app/repositories/{sessions,users,projects,tasks}.py` (all query construction) and `app/services/{auth,users,projects,tasks,permissions}.py` (state transitions, authorization, audit writes); rewrote `api/{auth,users,projects,tasks}.py` as thin adapters that parse → call service → return schema (routers no longer query, commit, or audit); moved project authorization into `services/permissions.py` (deleted `api/authorization.py`). **Errors:** `app/core/errors.py` (`AppError` hierarchy + handlers) normalizes domain/`HTTPException`/validation errors into `{detail, code, details, request_id}` (no stack traces; `detail` stays a string for the frontend). **Logging/observability:** `app/core/{context,logging}.py` + `app/middleware/request_context.py` (pure ASGI) assign/echo `X-Request-ID` and emit one JSON access line per request (severity, timestamp, request_id, actor_id, route, status, duration); `app/core/config.py` gains `log_level`. **Health/ops:** `api/health.py` now runs `SELECT 1` (`GET /health` → `{status, database}`, 503 when down) with static `GET /health/live`; `app/main.py` lifespan sets `app.state.ready` and disposes the engine (`db/session.py` → `get_engine()`/`dispose_engine()`). **Defect fixed:** `migrations/env.py` `fileConfig(..., disable_existing_loggers=False)` so in-process migrations no longer silence `app.*` logs. **Tests:** `tests/test_service_layer.py` (9, no HTTP) + `tests/test_observability.py` (5); `tests/support.py` patches the service clock. **Verified:** `pytest` → **44 passed** (30 prior + 14); `ruff check`/`ruff format --check` green; booted app under `TestClient` lifespan → readiness `{status: ok, database: ok}`, request-ID echo/generation and JSON access logs confirmed; OpenAPI paths unchanged. Flipped the 9 Phase 4 boxes + 3 Phase 10 error-handling boxes to `[x]`; Phase 4 → **COMPLETED**; completed phases 4 → 5; remaining 13 → 12; overall **187/356 → 199/356 (56%)**. All Phase 4 changes remain **uncommitted**. | Commit the Phase 3 + Phase 4 changes; then either close the Phase 11 test/CI harness (pytest layout exists — add the role×endpoint matrix, frontend Vitest, coverage, CI) or continue SRS feature parity (Phase 9). |
+| 2026-10-11 | **Phase 11 — backend test harness expanded** (unit + schema + state-machine + auth + role × endpoint / IDOR matrix); Phase 11 → **PARTIALLY COMPLETED**. Also committed Phase 3+4 (`a8a5f76`). | **Config:** `[tool.pytest.ini_options]` (`testpaths`/`pythonpath`) + `[tool.coverage.*]` in `backend/pyproject.toml`; added `pytest-cov==7.1.0` to `requirements-dev.txt`; `npm run test`/`backend:test`/`backend:test:cov` + README rows. **Harness:** `tests/support.py` `make_user` takes a hashed password; `tests/conftest.py` `world` adds a peer member + an unrelated `OMEGA` project, and an autouse `reset_rate_limiter` fixture (the login limiter keys on `testclient`). **New tests:** `test_units.py` (security helpers + settings validation, 12), `test_schema_validators.py` (schema/validator rules, 17), `test_task_state_machine.py` (allowed/disallowed transitions + role guards, 10), `test_authorization_matrix.py` (role × endpoint for every route + IDOR/BOLA, ~60 cases), `test_auth_api.py` (login/refresh rotation/logout/change/forced-change/rate-limit/deactivation, 14), `test_membership.py` (replace diff + audit, 2). **Verified:** `pytest` → **194 passed** (44 prior + 150); coverage **~93%** (`app`, branch); `ruff check`/`ruff format --check` green. Flipped 21 Phase 11 boxes to `[x]` (infra 4/6, backend unit 5/5, API-integration 7/8, security 5/5); Phase 11 status → **PARTIALLY COMPLETED**; overall **199/356 → 220/356 (62%)**. Phase 11 changes remain **uncommitted**. | Add the frontend Vitest suite (login form, role-gated rendering, 401→refresh→retry, assignee payload regression) and wire both suites into CI (Phase 14); optionally cover concurrent issue-number allocation against PostgreSQL. |
+| 2026-10-12 | **Checklist reconciliation** — flipped 6 stale `[ ]` boxes that were actually delivered by the Phase 2 defect fixes and Phase 3 work but never ticked. | Verified in code and ticked: Phase 5 auth test matrix (`tests/test_authorization_matrix.py`); Phase 6 `GET /tasks/{id}/reviews` (`api/tasks.py:51`); Phase 7 review feedback visible to Member (`TasksWorkspace.tsx` `ReviewNote`, line 437); Phase 8 CORS `PUT` (`main.py:47`); Phase 9 review feedback readable by Member; Phase 15 ERD reference (`docs/database-schema.md`). No phase status changed (Phases 5-15 stay PARTIALLY COMPLETED). Overall **220/356 → 226/356 (63%)**. | Commit the Phase 11 harness + this reconciliation; then add the frontend Vitest suite and CI (Phase 14). |
+| 2026-10-13 | **Phase 6 — full API REST surface implemented**; Phase 6 → **COMPLETED**. All previously-missing SRS/TRD endpoints shipped; required `python-multipart` added. | **Endpoints added (all under `/api/v1`):** `GET/PATCH/DELETE /projects/{id}` (detail; status lifecycle `PLANNED→ACTIVE→COMPLETED→ARCHIVED` with 409 on invalid transition; audited delete cascades members/tasks/comments/attachments/evidence); `DELETE /tasks/{id}`; task list `sort` (by position, created_at, priority) honoring `status`/`priority` filters; comments `GET/POST /tasks/{id}/comments` + `PATCH/DELETE /comments/{id}`; attachments `POST /tasks/{id}/attachments` (multipart: MIME allowlist, 5 MB cap, server-generated storage keys) + `GET` download + `DELETE`; GitHub evidence `GET/POST /tasks/{id}/github-links` + `DELETE` (github.com host + path validation); notifications `GET` (unread count + `unread_only` filter) + `PATCH /notifications/{id}/read` with trigger wiring (TASK_ASSIGNED, REVIEW_REQUESTED, TASK_APPROVED, CHANGES_REQUIRED); project/task activity feeds; Admin `GET /audit-logs`; `GET /projects/{id}/analytics` (progress %, by-status/by-priority counts, overdue, contributions); `GET /users/{id}` (Admin) + `PATCH /users/me`. Storage abstraction: `app/core/storage.py` (`Storage` protocol + `LocalStorage`, dependency-overridable). **Policy:** uniform 404-vs-403 documented (`docs/http-semantics.md`) — capability gaps → 403, object concealment → 404 (including unrelated-project membership listing, which moved 403 → 404 in `get_members`); contract committed as `docs/openapi.json` (34 paths / 45 operations) regenerated via new `npm run backend:openapi`. **Tests:** +76 → **270 passed** (`test_collaboration_api.py`, `test_notifications_api.py`, `test_projects_lifecycle_api.py`, `test_activity_audit_api.py`, `test_analytics_api.py`, `test_users_profile_api.py`, `test_task_delete_sort.py`; hardened GitHub-URL validator). `ruff check`/`ruff format` green. Flipped 14 Phase 6 boxes + 4 Phase 10 validation boxes + 2 Phase 15 docs boxes to `[x]`; Phase 6 → **COMPLETED**; completed phases 6 → 7; remaining 12 → 11; overall **226/356 → 246/356 (69%)**. README "Current scope" updated. Static-only `get_members` policy change is a deliberate documented deviation. Changes remain **uncommitted**. | Commit the Phase 6 work; then continue Phase 7 UI (task detail/comments/attachments/evidence/kanban/analytics screens) + Phase 11 frontend Vitest + Phase 14 CI, or phase 12/13 security/deploy hardening. |

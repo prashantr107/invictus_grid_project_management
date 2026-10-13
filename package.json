@@ -15,6 +15,9 @@
     "backend:migrate:check": "node scripts/py.mjs -m alembic check",
     "backend:bootstrap": "node scripts/py.mjs -m app.bootstrap_admin",
     "backend:seed": "node scripts/py.mjs -m app.seed",
+    "backend:openapi": "node scripts/py.mjs -m app.export_openapi",
+    "backend:test": "node scripts/py.mjs -m pytest tests",
+    "backend:test:cov": "node scripts/py.mjs -m pytest tests --cov=app --cov-report=term-missing",
     "backend:dev": "node scripts/py.mjs -m uvicorn app.main:app --reload",
     "backend:lint": "node scripts/py.mjs -m ruff check .",
     "backend:format": "node scripts/py.mjs -m ruff format .",
@@ -28,6 +31,7 @@
     "frontend:format:check": "npm --prefix frontend run format:check",
     "lint": "npm run backend:lint && npm run frontend:lint",
     "typecheck": "npm --prefix frontend run typecheck",
+    "test": "npm run backend:test",
     "format": "npm run backend:format && npm run frontend:format",
     "format:check": "npm run backend:format:check && npm run frontend:format:check"
   }
